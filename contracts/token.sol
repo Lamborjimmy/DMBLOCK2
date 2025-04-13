@@ -7,8 +7,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  
 // Your token contract
 contract Token is Ownable, ERC20 {
-    string private constant _symbol = '';                 // TODO: Give your token a symbol (all caps!)
-    string private constant _name = '';                   // TODO: Give your token a name
+    string private constant _symbol = 'SHR';                 // TODO: Give your token a symbol (all caps!)
+    string private constant _name = 'ShrekCoin';                   // TODO: Give your token a name
+    bool private _mintingEnabled = true;                     //zabránenie aby sa ďalej mintovali tokeny
 
     constructor() ERC20(_name, _symbol) {}
 
@@ -19,22 +20,19 @@ contract Token is Ownable, ERC20 {
     // Function _mint: Create more of your tokens.
     // You can change the inputs, or the scope of your function, as needed.
     // Do not remove the AdminOnly modifier!
-    function mint(uint amount) 
-        public 
-        onlyOwner
+    function mint(uint amount) public onlyOwner
     {
-        /******* TODO: Implement this function *******/
+        require(_mintingEnabled, "Minting is disabled.");
+         require(amount > 0, "Amount must be greater than zero.");
+         _mint(msg.sender, amount * 10 ** decimals());
 
     }
 
     // Function _disable_mint: Disable future minting of your token.
     // You can change the inputs, or the scope of your function, as needed.
     // Do not remove the AdminOnly modifier!
-    function disable_mint()
-        public
-        onlyOwner
+    function disable_mint() public onlyOwner
     {
-        /******* TODO: Implement this function *******/
-
+        _mintingEnabled = false;
     }
 }
