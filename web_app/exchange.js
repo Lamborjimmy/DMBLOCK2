@@ -593,33 +593,49 @@ const exchange_contract = new ethers.Contract(exchange_address, exchange_abi, pr
 /*** INIT ***/
 async function init() {
     var poolState = await getPoolState();
-    console.log("starting init");
-    if (poolState['token_liquidity'] === 0
-            && poolState['eth_liquidity'] === 0) {
-      // Call mint twice to make sure mint can be called mutliple times prior to disable_mint
-      const total_supply = 100000;
-      await token_contract.connect(provider.getSigner(defaultAccount)).mint(total_supply / 2);
-		  await token_contract.connect(provider.getSigner(defaultAccount)).mint(total_supply / 2);
-		  await token_contract.connect(provider.getSigner(defaultAccount)).disable_mint();
-      await token_contract.connect(provider.getSigner(defaultAccount)).approve(exchange_address, total_supply);
-      // initialize pool with equal amounts of ETH and tokens, so exchange rate begins as 1:1
-      await exchange_contract.connect(provider.getSigner(defaultAccount)).createPool(5000, { value: ethers.utils.parseUnits("5000", "wei")});
-      console.log("init finished");
+    console.log("Starting init");
+    console.log("Initial pool state:", poolState);
+    if (poolState['token_liquidity'] === 0 && poolState['eth_liquidity'] === 0) {
+        // Celková zásoba tokenov (100000 tokenov)
+        const total_supply = ethers.utils.parseUnits("100000", 18); // 100000 tokenov v jednotkách
+        console.log("Minting tokens:", total_supply.toString());
+        await token_contract.connect(provider.getSigner(defaultAccount)).mint(total_supply.div(2));
+        await token_contract.connect(provider.getSigner(defaultAccount)).mint(total_supply.div(2));
+        await token_contract.connect(provider.getSigner(defaultAccount)).disable_mint();
 
-       // All accounts start with 0 of your tokens. Thus, be sure to swap before adding liquidity.
-    }
+        console.log("Approving tokens:", total_supply.toString());
+        const approveTx = await token_contract.connect(provider.getSigner(defaultAccount)).approve(exchange_address, total_supply);
+        await approveTx.wait();
+
+        // Inicializácia poolu s 5000 ETH a 5000 tokenmi
+        const poolTokens = ethers.utils.parseUnits("5000", 18); // 5000 tokenov
+        const poolEth = ethers.utils.parseEther("5000"); // 5000 ETH
+        //console.log("Creating pool with tokens:", poolTokens.toString(), "ETH:", poolEth.toString());
+        const createPoolTx = await exchange_contract.connect(provider.getSigner(defaultAccount)).createPool(poolTokens, { value: poolEth });
+        await createPoolTx.wait();
+
+        console.log("Init finished");
+  }
 }
-
 async function getPoolState() {
-    // read pool balance for each type of liquidity:
-    let liquidity_tokens = await token_contract.connect(provider.getSigner(defaultAccount)).balanceOf(exchange_address);
-    let liquidity_eth = await provider.getBalance(exchange_address);
-    return {
-        token_liquidity: Number(liquidity_tokens),
-        eth_liquidity: Number(liquidity_eth),
-        token_eth_rate: Number(liquidity_tokens) / Number(liquidity_eth),
-        eth_token_rate: Number(liquidity_eth) / Number(liquidity_tokens)
-    };
+  let liquidity_tokens = await token_contract.balanceOf(exchange_address);
+  let liquidity_eth = await provider.getBalance(exchange_address);
+  const decimals = await token_contract.decimals(); // Počet desatinných miest tokenu (18)
+
+  // Konverzia na desatinné hodnoty pre zobrazenie
+  const tokenLiquidity = Number(ethers.utils.formatUnits(liquidity_tokens, decimals)); // Napr. 5000
+  const ethLiquidity = Number(ethers.utils.formatEther(liquidity_eth)); // Napr. 5000
+
+  // Výpočet výmenných kurzov (používame desatinné hodnoty)
+  const tokenEthRate = ethLiquidity === 0 ? 0 : tokenLiquidity / ethLiquidity; // Tokeny za 1 ETH
+  const ethTokenRate = tokenLiquidity === 0 ? 0 : ethLiquidity / tokenLiquidity; // ETH za 1 token
+
+  return {
+      token_liquidity: tokenLiquidity,
+      eth_liquidity: ethLiquidity,
+      token_eth_rate: tokenEthRate,
+      eth_token_rate: ethTokenRate
+  };
 }
 
 // ============================================================
@@ -632,7 +648,6 @@ async function getPoolState() {
 /*** ADD LIQUIDITY ***/
 async function addLiquidity(amountEth, maxSlippagePct) {
     /** TODO: ADD YOUR CODE HERE **/
-   
 }
 
 /*** REMOVE LIQUIDITY ***/
@@ -648,13 +663,79 @@ async function removeAllLiquidity(maxSlippagePct) {
 
 /*** SWAP ***/
 async function swapTokensForETH(amountToken, maxSlippagePct) {
-    /** TODO: ADD YOUR CODE HERE **/
-   
+  // Inicializácia signera
+    const signer = provider.getSigner(defaultAccount);
+
+    // Získanie počtu desatinných miest tokenu
+    const decimals = await token_contract.decimals();
+
+    // Konverzia amountToken na jednotky tokenu (wei ekvivalent pre tokeny)
+    const amountTokenWei = ethers.utils.parseUnits(amountToken.toString(), decimals);
+
+    //kontrola či má osoba dostatok tokenov
+    const userBalance = await token_contract.balanceOf(defaultAccount);
+        if (userBalance.lt(amountTokenWei)) {
+            alert(`Nedostatok tokenov! Požadujete ${ethers.utils.formatUnits(amountTokenWei, decimals)} tokenov, ale máte iba ${ethers.utils.formatUnits(userBalance, decimals)}.`);
+            $("#log").append(`Swap tokens for ETH error: Insufficient token balance\n`);
+            return; 
+        }
+
+    // Získanie aktuálnych rezerv poolu
+    const tokenReserves = await token_contract.balanceOf(exchange_address);
+    const ethReserves = await provider.getBalance(exchange_address);
+
+    // Výpočet aktuálneho výmenného kurzu (ETH za 1 token)
+    const currentRate = ethReserves.div(tokenReserves);
+
+    // Výpočet maximálneho výmenného kurzu s ohľadom na slippage
+    const slippageFactor = ethers.BigNumber.from(maxSlippagePct); //premena max slippage na BigNumber pre kontrakt
+    const hundred = ethers.BigNumber.from(100);                   //cislo ktore reprezentuje 100% znova v tvare BigNumber
+    const maxRateDecrease = currentRate.mul(slippageFactor).div(hundred); 
+    const maxExchangeRate =  currentRate.sub(maxRateDecrease);
+
+    // Schválenie tokenov pre exchange kontrakt
+    const approveTx = await token_contract.connect(signer).approve(exchange_address, amountTokenWei);
+    await approveTx.wait(); //musí byť transakcia potvrdená aby sme mohli používať kontrakt
+
+    // Odoslanie transakcie na swap
+    const tx = await exchange_contract.connect(signer).swapTokensForETH(amountTokenWei, maxExchangeRate);
+    await tx.wait();
 }
 
 async function swapETHForTokens(amountEth, maxSlippagePct) {
-    /** TODO: ADD YOUR CODE HERE **/
-   
+    // Konverzia amountEth na Wei
+    const amountEthValue = ethers.utils.parseEther(amountEth.toString());
+
+    // Inicializácia signera
+    const signer = provider.getSigner(defaultAccount);
+
+    //Pop up ak osoba nemá dostatok ETH
+    const balance = await signer.getBalance();
+    if (balance.lt(amountEthValue)) {
+      alert(`Nedostatok ETH! Požadujete ${ethers.utils.formatEther(amountEthValue)} ETH, ale máte iba ${ethers.utils.formatEther(balance)} ETH.`);
+      $("#log").append(`Swap ETH for tokens error: Insufficient ETH balance\n`);
+      return;
+    }
+
+    // Získanie aktuálnych rezerv poolu
+    const tokenReserves = await token_contract.balanceOf(exchange_address);
+    const ethReserves = await provider.getBalance(exchange_address);
+
+    // Výpočet aktuálneho výmenného kurzu (tokeny za 1 ETH)
+    const currentRate = tokenReserves.div(ethReserves);
+
+    // Výpočet maximálneho výmenného kurzu s ohľadom na slippage
+    const slippageFactor = ethers.BigNumber.from(maxSlippagePct);
+    const hundred = ethers.BigNumber.from(100);
+    const maxRateIncrease = currentRate.mul(slippageFactor).div(hundred);
+    const maxExchangeRate = currentRate.add(maxRateIncrease); // currentRate * (1 + maxSlippagePct/100)
+
+    // Odoslanie transakcie na swap
+    const tx = await exchange_contract.connect(signer).swapETHForTokens(maxExchangeRate, {
+      value: amountEthValue
+    });
+
+    await tx.wait();  
 }
 
 // =============================================================================

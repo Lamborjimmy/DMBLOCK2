@@ -24,7 +24,7 @@ contract Token is Ownable, ERC20 {
     {
         require(_mintingEnabled, "Minting is disabled.");
          require(amount > 0, "Amount must be greater than zero.");
-         _mint(msg.sender, amount * 10 ** decimals());
+         _mint(msg.sender, amount);
 
     }
 
