@@ -647,7 +647,67 @@ async function getPoolState() {
 
 /*** ADD LIQUIDITY ***/
 async function addLiquidity(amountEth, maxSlippagePct) {
-    /** TODO: ADD YOUR CODE HERE **/
+    // Inicializácia signera
+    const signer = provider.getSigner(defaultAccount);
+
+    // Konverzia amountEth na Wei
+    const amountEthValue = ethers.utils.parseEther(amountEth.toString());
+
+    // Kontrola zostatku ETH
+    const balanceEth = await signer.getBalance();
+    if (balanceEth.lt(amountEthValue)) {
+        alert(`Nedostatok ETH! Požadujete ${ethers.utils.formatEther(amountEthValue)} ETH, ale máte iba ${ethers.utils.formatEther(balanceEth)} ETH.`);
+        $("#log").append(`Add liquidity error: Insufficient ETH balance\n`);
+        return;
+    }
+
+    // Získanie aktuálnych rezerv poolu
+    const tokenReserves = await token_contract.balanceOf(exchange_address);
+    const ethReserves = await provider.getBalance(exchange_address);
+
+    // Kontrola, či pool existuje
+    if (tokenReserves.eq(0) && ethReserves.eq(0)) {
+        alert("Pool nie je inicializovaný! Najprv inicializujte pool pomocou funkcie init.");
+        $("#log").append(`Add liquidity error: Pool does not exist\n`);
+        return;
+    }
+
+    // Získanie počtu desatinných miest tokenu
+    const decimals = await token_contract.decimals();
+
+    // Výpočet požadovaného množstva tokenov
+    const amountTokensWei = amountEthValue.mul(tokenReserves).div(ethReserves);
+
+    // Kontrola zostatku tokenov používateľa
+    const userBalance = await token_contract.balanceOf(defaultAccount);
+    if (userBalance.lt(amountTokensWei)) {
+        alert(`Nedostatok tokenov! Požadujete ${ethers.utils.formatUnits(amountTokensWei, decimals)} tokenov, ale máte iba ${ethers.utils.formatUnits(userBalance, decimals)}. Čím viac ETH chcete pridať, tým viac tokenov potrebujete.`);
+        $("#log").append(`Add liquidity error: Insufficient token balance\n`);
+        return;
+    }
+
+    // Výpočet aktuálneho výmenného kurzu
+    const tokenPerEthRate = ethReserves.eq(0) ? ethers.BigNumber.from(0) : tokenReserves.div(ethReserves); // Tokeny za 1 ETH
+    const ethPerTokenRate = tokenReserves.eq(0) ? ethers.BigNumber.from(0) : ethReserves.div(tokenReserves); // ETH za 1 token
+
+    // Výpočet max_exchange_rate a min_exchange_rate s ohľadom na slippage
+    const maxExchangeRate = ethers.BigNumber.from(
+        Math.round((Number(ethers.utils.formatUnits(tokenPerEthRate, 18)) * (1 + maxSlippagePct / 100)) * 1e18)
+    );
+    const minExchangeRate = ethers.BigNumber.from(
+        Math.round(Math.max(0, Number(ethers.utils.formatUnits(ethPerTokenRate, 18)) * (1 - maxSlippagePct / 100)) * 1e18)
+    );
+
+    // Schválenie tokenov pre exchange kontrakt
+    const approveTx = await token_contract.connect(signer).approve(exchange_address, amountTokensWei);
+    await approveTx.wait();
+
+    // Odoslanie transakcie na pridanie likvidity
+    const tx = await exchange_contract.connect(signer).addLiquidity(maxExchangeRate, minExchangeRate, {
+        value: amountEthValue,
+        gasLimit: 200000
+    });
+    await tx.wait();
 }
 
 /*** REMOVE LIQUIDITY ***/

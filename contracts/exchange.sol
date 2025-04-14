@@ -99,30 +99,47 @@ contract TokenExchange is Ownable {
     function addLiquidity(uint max_exchange_rate, uint min_exchange_rate) 
         external 
         payable
-    {
+    {   
+        //kontrola, či je zadané množstvo ETH nenulové
+        require(msg.value > 0, "Need ETH to add liquidity");
         require(token_reserves > 0 && eth_reserves > 0, "Pool does not exist");
-        uint amountETH = msg.value;
-        require(amountETH > 0, "Need ETH to add liquidity");
+        uint tokenETHRate = token_reserves / eth_reserves; //kurz tokenov za 1 ETH
+        uint ethTokenRate = eth_reserves / token_reserves; //kurz ETH za 1 token
 
-        uint current_rate = (token_reserves) / eth_reserves;
-        require(current_rate <= max_exchange_rate, "Exchange rate exceeds max");
-        require(current_rate >= min_exchange_rate, "Exchange rate is too low");
+        //Kontrola slippage
+        require(tokenETHRate <= max_exchange_rate, "Exchange rate exceeds max");
+        require(ethTokenRate >= min_exchange_rate, "Exchange rate below min");
 
-        uint amountTokens = (amountETH * token_reserves) / eth_reserves;
-        require(amountTokens <= token.balanceOf(msg.sender), "Not have enough tokens to add liquidity");
+        //počet potrebných tokenov za danú cenu ETH zohladnujeme aj kurz
+        uint amountTokens = (msg.value * token_reserves) / eth_reserves;
+        
+        require(amountTokens <= token.balanceOf(msg.sender), "Not enough tokens to add liquidity");
 
-        token_reserves += amountTokens;
-        eth_reserves += amountETH;
+        uint liquidityRatio;
+        uint currentLiquidity = totalLiquidity();
 
-        k = eth_reserves * token_reserves;
+        if (currentLiquidity == 0) {
+            liquidityRatio = msg.value;
+        } else {
+            uint newTotalLiquidity = currentLiquidity + msg.value;
+            liquidityRatio = msg.value * currentLiquidity / newTotalLiquidity;
+        }
+
         if(!isAlreadyLP(msg.sender)) {
             lp_providers.push(msg.sender);
+            console.log("Added liquidity provider: ", msg.sender);
         }
-        lps[msg.sender] += amountETH;
+
+        lps[msg.sender] += liquidityRatio;
 
         token.transferFrom(msg.sender, address(this), amountTokens);
-        console.log("Liquidity added. ETH: " , amountETH , " Tokens: " , amountTokens);
-       
+
+        token_reserves += amountTokens;
+        eth_reserves += msg.value;
+
+        k = token_reserves * eth_reserves;
+
+        console.log("Added liquidity: ETH:", msg.value, "Tokens:", amountTokens);
     }
 
 
