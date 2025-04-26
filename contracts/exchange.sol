@@ -103,34 +103,37 @@ contract TokenExchange is Ownable {
         //kontrola, či je zadané množstvo ETH nenulové
         require(msg.value > 0, "Need ETH to add liquidity");
         require(token_reserves > 0 && eth_reserves > 0, "Pool does not exist");
-        uint tokenETHRate = token_reserves / eth_reserves; //kurz tokenov za 1 ETH
-        uint ethTokenRate = eth_reserves / token_reserves; //kurz ETH za 1 token
+        uint ethReserve = address(this).balance - msg.value;
+        uint tokenReserve = token.balanceOf(address(this));
+        require(ethReserve > 0 && tokenReserve > 0, "Invalid pool reserves");
+
+        // Výpočet aktuálnych kurzov s vyššou presnosťou
+        uint tokenETHRate = ethReserve == 0 ? 0 : (tokenReserve * 1e18 + ethReserve - 1) / ethReserve; // Zaokrúhlenie nahor
+        uint ethTokenRate = tokenReserve == 0 ? 0 : (ethReserve * 1e18 + tokenReserve - 1) / tokenReserve; // Zaokrúhlenie nahor
 
         //Kontrola slippage
         require(tokenETHRate <= max_exchange_rate, "Exchange rate exceeds max");
         require(ethTokenRate >= min_exchange_rate, "Exchange rate below min");
 
         //počet potrebných tokenov za danú cenu ETH zohladnujeme aj kurz
-        uint amountTokens = (msg.value * token_reserves) / eth_reserves;
+        uint amountTokens = (msg.value * tokenReserve + ethReserve - 1) / ethReserve;
         
         require(amountTokens <= token.balanceOf(msg.sender), "Not enough tokens to add liquidity");
 
-        uint liquidityRatio;
-        uint currentLiquidity = totalLiquidity();
-
-        if (currentLiquidity == 0) {
-            liquidityRatio = msg.value;
+        uint liquidityMinted;
+        uint totalSupply = totalLiquidity();
+        if (totalSupply == 0) {
+            // Tento prípad by nemal nastať, pretože pool je inicializovaný cez createPool
+            revert("Pool must be initialized with createPool");
         } else {
-            uint newTotalLiquidity = currentLiquidity + msg.value;
-            liquidityRatio = msg.value * currentLiquidity / newTotalLiquidity;
+            liquidityMinted = (msg.value * totalSupply) / ethReserve;
         }
 
-        if(!isAlreadyLP(msg.sender)) {
+        // Aktualizácia poskytovateľov likvidity
+        if (!isAlreadyLP(msg.sender)) {
             lp_providers.push(msg.sender);
-            console.log("Added liquidity provider: ", msg.sender);
         }
-
-        lps[msg.sender] += liquidityRatio;
+        lps[msg.sender] += liquidityMinted;
 
         token.transferFrom(msg.sender, address(this), amountTokens);
 
