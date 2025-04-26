@@ -150,7 +150,7 @@ contract TokenExchange is Ownable {
         payable
     {
         /******* TODO: Implement this function *******/
-
+        
     }
 
     // Function removeAllLiquidity: Removes all liquidity that msg.sender is entitled to withdraw
@@ -160,7 +160,7 @@ contract TokenExchange is Ownable {
         payable
     {
         /******* TODO: Implement this function *******/
-    
+
     }
     /***  Define additional functions for liquidity fees here as needed ***/
 
@@ -189,19 +189,16 @@ contract TokenExchange is Ownable {
         require(current_rate >= max_exchange_rate, "Exchange rate below min");
 
         // Výpočet množstva ETH na poslanie (zachovanie x * y = k)
-        uint new_token_reserves = token_reserves + amountTokens;
-        uint new_eth_reserves = (k / new_token_reserves);
-        require(new_eth_reserves < eth_reserves, "No ETH to swap");
-        uint amountETH = eth_reserves - new_eth_reserves;
+        uint amountETH = amountTokens * eth_reserves / token_reserves;
+        require(amountETH < eth_reserves, "No ETH to swap");
 
         // Kontrola, či zostane aspoň 1 ETH a 1 token v pooli
-        require(new_eth_reserves >= 1, "Must leave at least 1 ETH");
-        require(new_token_reserves >= 1, "Must leave at least 1 token");
+        require(eth_reserves - amountETH >= 1, "Must leave at least 1 ETH");
+        require(token_reserves + amountTokens >= 1, "Must leave at least 1 token");
 
         // Aktualizácia rezerv
-        token_reserves = new_token_reserves;
-        eth_reserves = new_eth_reserves;
-
+        token_reserves += amountTokens;
+        eth_reserves -=  amountETH;
         // Aktualizácia k (kvôli zaokrúhľovaniu)
         k = token_reserves * eth_reserves;
 
@@ -231,18 +228,16 @@ contract TokenExchange is Ownable {
         require(current_rate <= max_exchange_rate, "Exchange rate exceeds max");
 
         // Výpočet množstva tokenov na poslanie (zachovanie x * y = k)
-        uint new_eth_reserves = eth_reserves + msg.value;
-        uint new_token_reserves = k / new_eth_reserves;
-        require(new_token_reserves < token_reserves, "No tokens to swap");
-        uint amountTokens = token_reserves - new_token_reserves;
+        uint amountTokens = msg.value * token_reserves / eth_reserves;
+        require(amountTokens < token_reserves, "No tokens to swap");
 
         // Kontrola, či zostane aspoň 1 ETH a 1 token v pooli
-        require(new_eth_reserves >= 1, "Must leave at least 1 ETH");
-        require(new_token_reserves >= 1, "Must leave at least 1 token");
+        require(token_reserves - amountTokens >= 1, "Must leave at least 1 ETH");
+        require(eth_reserves + msg.value >= 1, "Must leave at least 1 token");
 
         // Aktualizácia rezerv
-        token_reserves = new_token_reserves;
-        eth_reserves = new_eth_reserves;
+        token_reserves -= amountTokens;
+        eth_reserves += msg.value;
 
         // Aktualizácia k (kvôli zaokrúhľovaniu)
         k = token_reserves * eth_reserves;
