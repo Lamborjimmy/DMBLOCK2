@@ -97,7 +97,9 @@ contract TokenExchange is Ownable {
         }
         return total == 0 ? 1 : total;
     }
-
+    function getLiquidity(address provider) public view returns (uint){
+        return lps[provider];
+    }
     function addLiquidity(uint max_exchange_rate, uint min_exchange_rate) 
         external 
         payable
@@ -131,12 +133,47 @@ contract TokenExchange is Ownable {
 
     // Function removeLiquidity: Removes liquidity given the desired amount of ETH to remove.
     // You can change the inputs, or the scope of your function, as needed.
-    function removeLiquidity(uint amountETH, uint max_exchange_rate, uint min_exchange_rate)
+    function removeLiquidity(uint max_exchange_rate, uint min_exchange_rate)
         public 
         payable
     {
-        /******* TODO: Implement this function *******/
+        require(msg.value > 0, "Cant withdraw 0 ETH");
         
+        uint numerator = msg.value * token_reserves;
+        uint denominator = eth_reserves + msg.value;
+        uint expectedTokens = numerator / denominator;
+
+        require(max_exchange_rate >= expectedTokens, "Exchange rate exceeds max");
+        require(expectedTokens >= min_exchange_rate, "Exchange rate below min");
+
+        require(lps[msg.sender] >= msg.value, "Can't withdraw more ETH than staked");
+        require(eth_provider_reserves - msg.value > 0, "Can't withdraw ETH to drain reserves");
+        require(token_provider_reserves - expectedTokens > 0, "Can't withdraw SHR to drain reserves");
+
+        console.log("ETH: ", eth_reserves);
+        eth_provider_reserves -= msg.value;
+        eth_reserves -= msg.value;
+        token_provider_reserves -= expectedTokens;
+        token_reserves -= expectedTokens;
+
+        lps[msg.sender] -= msg.value;
+        
+        if(lps[msg.sender] == 0){
+            for(uint i = 0; i < lp_providers.length; i++){
+                if(lp_providers[i] == msg.sender){
+                    removeLP(i);
+                    break;
+                }
+            } 
+        }
+        console.log("removing: ", msg.value);
+        console.log("adres:", msg.sender);
+        token.transfer(msg.sender, expectedTokens);
+        uint amountETH = msg.value * eth_reserves / token_reserves;
+        //payable(msg.sender).transfer(msg.value);
+        payable(msg.sender).transfer(amountETH);
+        console.log("ETH AFTER: ", eth_reserves);
+        k = token_reserves * eth_reserves;
     }
 
     // Function removeAllLiquidity: Removes all liquidity that msg.sender is entitled to withdraw
@@ -145,8 +182,33 @@ contract TokenExchange is Ownable {
         external
         payable
     {
-        /******* TODO: Implement this function *******/
+        uint value = lps[msg.sender];
+        uint numerator = value * token_reserves;
+        uint denominator = eth_reserves + value;
+        uint expectedTokens = numerator / denominator;
 
+        require(max_exchange_rate >= expectedTokens, "Exchange rate exceeds max");
+        require(expectedTokens >= min_exchange_rate, "Exchange rate below min");
+
+        require(eth_provider_reserves - value > 0, "Can't withdraw ETH to drain reserves");
+        require(token_provider_reserves - expectedTokens > 0, "Can't withdraw SHR to drain reserves");
+
+        eth_provider_reserves -= value;
+        eth_reserves -= value;
+        token_provider_reserves -= expectedTokens;
+        token_reserves -= expectedTokens;
+
+        token.transfer(msg.sender, expectedTokens);
+        payable(msg.sender).transfer(value);
+        lps[msg.sender] = 0;
+
+        for(uint i = 0; i < lp_providers.length; i++){
+            if(lp_providers[i] == msg.sender){
+                removeLP(i);
+                break;
+            }
+        }
+        k = token_reserves * eth_reserves;
     }
     /***  Define additional functions for liquidity fees here as needed ***/
 

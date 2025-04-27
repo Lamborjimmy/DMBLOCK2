@@ -499,11 +499,6 @@ const exchange_abi = [
     inputs: [
       {
         internalType: "uint256",
-        name: "amountETH",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
         name: "max_exchange_rate",
         type: "uint256",
       },
@@ -580,6 +575,25 @@ const exchange_abi = [
     name: "transferOwnership",
     outputs: [],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "provider",
+        type: "address",
+      },
+    ],
+    name: "getLiquidity",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
 ];
@@ -685,7 +699,7 @@ async function addLiquidity(amountEth, maxSlippagePct) {
   const decimals = await token_contract.decimals();
 
   // Kontrola existencie poolu
-  if (tokenReserves.eq(0) || ethReserves.eq(0)) {
+  if (tokenReserves.eq(0) && ethReserves.eq(0)) {
     alert("Pool nie je inicializovaný!");
     $("#log").append(`Add liquidity error: Pool does not exist\n`);
     return;
@@ -749,11 +763,178 @@ async function addLiquidity(amountEth, maxSlippagePct) {
 
 /*** REMOVE LIQUIDITY ***/
 async function removeLiquidity(amountEth, maxSlippagePct) {
-  /** TODO: ADD YOUR CODE HERE **/
+  const signer = provider.getSigner(defaultAccount);
+  const amountEthValue = ethers.utils.parseEther(amountEth.toString());
+
+  // Získanie aktuálnych rezerv
+  const tokenReserves = await token_contract.balanceOf(exchange_address);
+  const ethReserves = await provider.getBalance(exchange_address);
+  const decimals = await token_contract.decimals();
+
+  // Kontrola existencie poolu
+  if (tokenReserves.eq(0) && ethReserves.eq(0)) {
+    alert("Pool nie je inicializovaný!");
+    $("#log").append(`Remove liquidity error: Pool does not exist\n`);
+    return;
+  }
+
+  // Kontrola dostatočných rezerv
+  const numerator = amountEthValue.mul(tokenReserves);
+  const denominator = ethReserves.add(amountEthValue);
+  const expectedTokens = numerator.div(denominator);
+  console.log(
+    "Expected tokens:",
+    ethers.utils.formatUnits(expectedTokens, decimals)
+  );
+
+  if (ethReserves.lte(amountEthValue)) {
+    alert(
+      `Nedostatok ETH v pooli! Pool má ${ethers.utils.formatEther(
+        ethReserves
+      )} ETH, ale požadujete ${amountEth} ETH.`
+    );
+    $("#log").append(`Remove liquidity error: Insufficient ETH reserves\n`);
+    return;
+  }
+
+  if (tokenReserves.lte(expectedTokens)) {
+    alert(
+      `Nedostatok SHR tokenov v pooli! Pool má ${ethers.utils.formatUnits(
+        tokenReserves,
+        decimals
+      )} SHR, ale požadujete ${ethers.utils.formatUnits(
+        expectedTokens,
+        decimals
+      )} SHR.`
+    );
+    $("#log").append(
+      `Remove liquidity error: Insufficient SHR token reserves\n`
+    );
+    return;
+  }
+
+  // Výpočet max_exchange_rate a min_exchange_rate (v jednotkách tokenov)
+  const slippageMultiplier = 100 + maxSlippagePct;
+  const slippageDivider = 100 - maxSlippagePct;
+  const maxExchangeRate = expectedTokens.mul(slippageMultiplier).div(100); // +slippage
+  const minExchangeRate = expectedTokens.mul(slippageDivider).div(100); // -slippage
+  console.log(
+    "maxExchangeRate:",
+    ethers.utils.formatUnits(maxExchangeRate, decimals)
+  );
+  console.log(
+    "minExchangeRate:",
+    ethers.utils.formatUnits(minExchangeRate, decimals)
+  );
+
+  console.log(
+    "Removing liquidity: ETH:",
+    amountEth,
+    "Expected tokens:",
+    ethers.utils.formatUnits(expectedTokens, decimals)
+  );
+  const approveTx = await token_contract
+    .connect(signer)
+    .approve(exchange_address, amountEthValue);
+  await approveTx.wait();
+
+  // Odoslanie transakcie na pridanie likvidity
+  const tx = await exchange_contract
+    .connect(signer)
+    .removeLiquidity(maxExchangeRate, minExchangeRate, {
+      value: amountEthValue,
+      gasLimit: 200000,
+    });
+  await tx.wait();
 }
 
 async function removeAllLiquidity(maxSlippagePct) {
-  /** TODO: ADD YOUR CODE HERE **/
+  const signer = provider.getSigner(defaultAccount);
+
+  // Kontrola podielu likvidity
+  const amountEthValue = await exchange_contract.getLiquidity(defaultAccount);
+  if (amountEthValue.eq(0)) {
+    alert("Nemáte žiadnu likviditu na odstránenie!");
+    $("#log").append(`Remove all liquidity error: No liquidity to remove\n`);
+    return;
+  }
+  const amountEth = ethers.utils.formatEther(amountEthValue);
+  console.log("Removing all liquidity: ETH:", amountEth);
+
+  // Získanie aktuálnych rezerv
+  const tokenReserves = await token_contract.balanceOf(exchange_address);
+  const ethReserves = await provider.getBalance(exchange_address);
+  const decimals = await token_contract.decimals();
+
+  // Kontrola existencie poolu
+  if (tokenReserves.eq(0) && ethReserves.eq(0)) {
+    alert("Pool nie je inicializovaný!");
+    $("#log").append(`Remove all liquidity error: Pool does not exist\n`);
+    return;
+  }
+
+  // Kontrola dostatočných rezerv
+  const numerator = amountEthValue.mul(tokenReserves);
+  const denominator = ethReserves.add(amountEthValue);
+  const expectedTokens = numerator.div(denominator);
+  console.log(
+    "Expected tokens:",
+    ethers.utils.formatUnits(expectedTokens, decimals)
+  );
+
+  if (ethReserves.lte(amountEthValue)) {
+    alert(
+      `Nedostatok ETH v pooli! Pool má ${ethers.utils.formatEther(
+        ethReserves
+      )} ETH, ale požadujete ${amountEth} ETH.`
+    );
+    $("#log").append(`Remove all liquidity error: Insufficient ETH reserves\n`);
+    return;
+  }
+
+  if (tokenReserves.lte(expectedTokens)) {
+    alert(
+      `Nedostatok SHR tokenov v pooli! Pool má ${ethers.utils.formatUnits(
+        tokenReserves,
+        decimals
+      )} SHR, ale požadujete ${ethers.utils.formatUnits(
+        expectedTokens,
+        decimals
+      )} SHR.`
+    );
+    $("#log").append(
+      `Remove all liquidity error: Insufficient SHR token reserves\n`
+    );
+    return;
+  }
+
+  // Výpočet max_exchange_rate a min_exchange_rate (v jednotkách tokenov)
+  const slippageMultiplier = 100 + maxSlippagePct;
+  const slippageDivider = 100 - maxSlippagePct;
+  const maxExchangeRate = expectedTokens.mul(slippageMultiplier).div(100); // +slippage
+  const minExchangeRate = expectedTokens.mul(slippageDivider).div(100); // -slippage
+  console.log(
+    "maxExchangeRate:",
+    ethers.utils.formatUnits(maxExchangeRate, decimals)
+  );
+  console.log(
+    "minExchangeRate:",
+    ethers.utils.formatUnits(minExchangeRate, decimals)
+  );
+
+  console.log(
+    "Removing all liquidity: ETH:",
+    amountEth,
+    "Expected tokens:",
+    ethers.utils.formatUnits(expectedTokens, decimals)
+  );
+  const tx = await exchange_contract
+    .connect(signer)
+    .removeAllLiquidity(maxExchangeRate, minExchangeRate, {
+      value: amountEthValue,
+      gasLimit: ethers.BigNumber.from(200000),
+    });
+  await tx.wait();
 }
 
 /*** SWAP ***/
