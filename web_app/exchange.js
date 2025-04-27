@@ -664,85 +664,77 @@ async function getPoolState() {
 
 /*** ADD LIQUIDITY ***/
 async function addLiquidity(amountEth, maxSlippagePct) {
-  // Inicializácia signera
   const signer = provider.getSigner(defaultAccount);
-
-  // Konverzia amountEth na Wei
   const amountEthValue = ethers.utils.parseEther(amountEth.toString());
 
   // Kontrola zostatku ETH
-  const balanceEth = await signer.getBalance();
-  if (balanceEth.lt(amountEthValue)) {
+  const ethBalance = await provider.getBalance(defaultAccount);
+  if (ethBalance.lt(amountEthValue)) {
     alert(
-      `Nedostatok ETH! Požadujete ${ethers.utils.formatEther(
-        amountEthValue
-      )} ETH, ale máte iba ${ethers.utils.formatEther(balanceEth)} ETH.`
+      `Nedostatok ETH! Máte ${ethers.utils.formatEther(
+        ethBalance
+      )} ETH, ale požadujete ${amountEth} ETH.`
     );
     $("#log").append(`Add liquidity error: Insufficient ETH balance\n`);
     return;
   }
 
-  // Získanie aktuálnych rezerv poolu
+  // Získanie aktuálnych rezerv
   const tokenReserves = await token_contract.balanceOf(exchange_address);
   const ethReserves = await provider.getBalance(exchange_address);
+  const decimals = await token_contract.decimals();
 
-  // Kontrola, či pool existuje
+  // Kontrola existencie poolu
   if (tokenReserves.eq(0) || ethReserves.eq(0)) {
-    alert(
-      "Pool nie je inicializovaný! Najprv inicializujte pool pomocou funkcie init."
-    );
+    alert("Pool nie je inicializovaný!");
     $("#log").append(`Add liquidity error: Pool does not exist\n`);
     return;
   }
 
-  // Získanie počtu desatinných miest tokenu
-  const decimals = await token_contract.decimals();
+  // Výpočet očakávaných tokenov
+  const numerator = amountEthValue.mul(tokenReserves);
+  const denominator = ethReserves.add(amountEthValue);
+  const expectedTokens = numerator.div(denominator);
+  console.log(
+    "Expected tokens:",
+    ethers.utils.formatUnits(expectedTokens, decimals)
+  );
 
-  // Výpočet požadovaného množstva tokenov
-  const amountTokensWei = amountEthValue
-    .mul(tokenReserves)
-    .add(ethReserves.sub(1))
-    .div(ethReserves);
-
-  // Kontrola zostatku tokenov používateľa
-  const userBalance = await token_contract.balanceOf(defaultAccount);
-  if (userBalance.lt(amountTokensWei)) {
+  // Kontrola zostatku tokenov
+  const tokenBalance = await token_contract.balanceOf(defaultAccount);
+  if (tokenBalance.lt(expectedTokens)) {
     alert(
-      `Nedostatok tokenov! Požadujete ${ethers.utils.formatUnits(
-        amountTokensWei,
+      `Nedostatok SHR tokenov! Máte ${ethers.utils.formatUnits(
+        tokenBalance,
         decimals
-      )} tokenov, ale máte iba ${ethers.utils.formatUnits(
-        userBalance,
+      )} SHR, ale požadujete ${ethers.utils.formatUnits(
+        expectedTokens,
         decimals
-      )}. Čím viac ETH chcete pridať, tým viac tokenov potrebujete.`
+      )} SHR.`
     );
-    $("#log").append(`Add liquidity error: Insufficient token balance\n`);
+    $("#log").append(`Add liquidity error: Insufficient SHR token balance\n`);
     return;
   }
 
-  // Výpočet aktuálneho výmenného kurzu
-  const tokenETHRate = ethReserves.eq(0)
-    ? ethers.BigNumber.from(0)
-    : tokenReserves
-        .mul(ethers.utils.parseEther("1"))
-        .add(ethReserves.sub(1))
-        .div(ethReserves);
-  const ethTokenRate = tokenReserves.eq(0)
-    ? ethers.BigNumber.from(0)
-    : ethReserves
-        .mul(ethers.utils.parseEther("1"))
-        .add(tokenReserves.sub(1))
-        .div(tokenReserves);
+  // Výpočet max_exchange_rate a min_exchange_rate (v jednotkách tokenov)
+  const slippageMultiplier = 100 + maxSlippagePct;
+  const slippageDivider = 100 - maxSlippagePct;
+  const maxExchangeRate = expectedTokens.mul(slippageMultiplier).div(100); // +slippage
+  const minExchangeRate = expectedTokens.mul(slippageDivider).div(100); // -slippage
+  console.log(
+    "maxExchangeRate:",
+    ethers.utils.formatUnits(maxExchangeRate, decimals)
+  );
+  console.log(
+    "minExchangeRate:",
+    ethers.utils.formatUnits(minExchangeRate, decimals)
+  );
 
-  // Výpočet max_exchange_rate a min_exchange_rate s ohľadom na slippage
-  const slippageMultiplier = 100 + maxSlippagePct * 2; // Zdvojnásobíme slippage pre väčšiu toleranciu
-  const maxExchangeRate = tokenETHRate.mul(slippageMultiplier).div(100);
-  const minExchangeRate = ethTokenRate.mul(100 - maxSlippagePct).div(100);
-
+  // Odoslanie transakcie
   // Schválenie tokenov pre exchange kontrakt
   const approveTx = await token_contract
     .connect(signer)
-    .approve(exchange_address, amountTokensWei);
+    .approve(exchange_address, amountEthValue);
   await approveTx.wait();
 
   // Odoslanie transakcie na pridanie likvidity

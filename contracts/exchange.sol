@@ -15,6 +15,8 @@ contract TokenExchange is Ownable {
     // Liquidity pool for the exchange
     uint private token_reserves = 0;
     uint private eth_reserves = 0;
+    uint private token_provider_reserves = 0;
+    uint private eth_provider_reserves = 0;
 
     mapping(address => uint) private lps; // LP shares (in wei, proportional to contribution)
      
@@ -100,49 +102,30 @@ contract TokenExchange is Ownable {
         external 
         payable
     {   
-        //kontrola, či je zadané množstvo ETH nenulové
+        //Kontrola mnozstva ETH
         require(msg.value > 0, "Need ETH to add liquidity");
-        require(token_reserves > 0 && eth_reserves > 0, "Pool does not exist");
-        uint ethReserve = address(this).balance - msg.value;
-        uint tokenReserve = token.balanceOf(address(this));
-        require(ethReserve > 0 && tokenReserve > 0, "Invalid pool reserves");
-
-        // Výpočet aktuálnych kurzov s vyššou presnosťou
-        uint tokenETHRate = ethReserve == 0 ? 0 : (tokenReserve * 1e18 + ethReserve - 1) / ethReserve; // Zaokrúhlenie nahor
-        uint ethTokenRate = tokenReserve == 0 ? 0 : (ethReserve * 1e18 + tokenReserve - 1) / tokenReserve; // Zaokrúhlenie nahor
+        //Vypocet ocakavanych tokenov
+        uint numerator = msg.value * token_reserves;
+        uint denominator = eth_reserves + msg.value;
+        uint expectedTokens = numerator / denominator;
+        //Kontrola poctu tokenov
+        require(token.balanceOf(msg.sender) >= expectedTokens, "Not enough SHR tokens");
 
         //Kontrola slippage
-        require(tokenETHRate <= max_exchange_rate, "Exchange rate exceeds max");
-        require(ethTokenRate >= min_exchange_rate, "Exchange rate below min");
-
-        //počet potrebných tokenov za danú cenu ETH zohladnujeme aj kurz
-        uint amountTokens = (msg.value * tokenReserve + ethReserve - 1) / ethReserve;
-        
-        require(amountTokens <= token.balanceOf(msg.sender), "Not enough tokens to add liquidity");
-
-        uint liquidityMinted;
-        uint totalSupply = totalLiquidity();
-        if (totalSupply == 0) {
-            // Tento prípad by nemal nastať, pretože pool je inicializovaný cez createPool
-            revert("Pool must be initialized with createPool");
-        } else {
-            liquidityMinted = (msg.value * totalSupply) / ethReserve;
-        }
-
-        // Aktualizácia poskytovateľov likvidity
+        require(max_exchange_rate >= expectedTokens, "Exchange rate exceeds max");
+        require(expectedTokens >= min_exchange_rate, "Exchange rate below min");
+        //Uprava poolov
+        eth_provider_reserves += msg.value;
+        eth_reserves += msg.value;
+        token_provider_reserves += expectedTokens;
+        token_reserves += expectedTokens;
         if (!isAlreadyLP(msg.sender)) {
             lp_providers.push(msg.sender);
         }
-        lps[msg.sender] += liquidityMinted;
-
-        token.transferFrom(msg.sender, address(this), amountTokens);
-
-        token_reserves += amountTokens;
-        eth_reserves += msg.value;
+        lps[msg.sender] += msg.value;
+        token.transferFrom(msg.sender, address(this), expectedTokens);
 
         k = token_reserves * eth_reserves;
-
-        console.log("Added liquidity: ETH:", msg.value, "Tokens:", amountTokens);
     }
 
 
