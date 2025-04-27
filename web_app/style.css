@@ -6,58 +6,269 @@
 // if you want to have cooler battleship pictures, change boat.png in media/
 */
 
+/* style.css - Enhanced styles for StanDex Exchange */
+
+/* Reset default styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Global styles */
 body {
- 	font-family: 'Source Sans Pro', 'Arial';
-	background-color:#EEE;
-	padding: 30px;
+  font-family: 'Inter', 'Arial', sans-serif;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  color: #333;
+  line-height: 1.6;
+  padding: 20px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
-.main {
-	width: 50%;
+
+/* Header */
+header {
+  text-align: center;
+  margin-bottom: 40px;
 }
+
+#sub-title-container {
+  background: #ffffff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+#title {
+  font-size: 2.5rem;
+  color: #1a237e;
+  margin-bottom: 10px;
+}
+
+#subtitle {
+  font-size: 1.2rem;
+  color: #666;
+  font-weight: 400;
+}
+
+/* Main container */
+#main {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+#main-display {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Panels */
 .panel {
-	position: absolute;
-	top: 20px;
-	width: 300px;
-	background-color: #CCC;
-	padding: 20px;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  width: 100%;
+  max-width: 350px;
+  transition: transform 0.3s ease;
 }
-.panel_left {
-	left: 20px;
+
+.panel:hover {
+  transform: translateY(-5px);
 }
+
 .panel_right {
-	right: 20px;
+  position: sticky;
+  top: 20px;
 }
-#all_users {
-	color: #666;
+
+/* Rate and liquidity displays */
+#rate-display,
+#liquidity-display {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
 }
-.wallet_addresses_panel {
-	position: absolute;
-	width: 300px;
-	height: 160px;
-	background-color: #CCC;
-	padding: 20px;
-	bottom: 10px;
-	right: 10px;
-	font-size: 10px;
-	opacity: 0.5;
+
+#current-rate-title,
+#current-liquidity-title {
+  font-size: 1.5rem;
+  color: #1a237e;
+  margin-bottom: 10px;
 }
-#amount {
-	width: 140px;
+
+#eth-token-rate-display,
+#token-eth-rate-display,
+#eth-reserves,
+#token-reserves {
+  font-size: 1.1rem;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.currency{
+	display: flex; /* Flexbox pre zobrazenie vedľa seba */
+    margin: 20px; /* Rozostupy medzi jednotlivými blokmi */
+}
+
+/* Currency icons */
+.currency-icon {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 10px;
+}
+
+/* Swap and liquidity controls */
+#swap-control,
+#liquidity-control {
+  margin-bottom: 30px;
+}
+
+.swap-control-title,
+.liquidity-control-title {
+  font-size: 1.3rem;
+  color: #1a237e;
+  margin-bottom: 15px;
 }
 
 label {
-	display:block;
-	margin-bottom:10px;
+  display: block;
+  font-size: 0.9rem;
+  color: #555;
+  margin-bottom: 8px;
+  font-weight: 500;
 }
+
 input {
-	width: 280px;
-	padding: 10px;
-	margin-bottom: 10px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+  background: #fff;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
+
+input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* Buttons */
 button {
-	display: block;
-	margin: 30px 0;
-	padding: 15px 30px;
-	border: 1px solid #666;
-	background: #CCC;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  background: #6366f1;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.3s ease, transform 0.2s ease;
+  margin: 10px 5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+button:hover {
+  background: #4f46e5;
+  transform: translateY(-2px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+.button-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+#swap-control-buttons,
+#liquidity-control-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Log section */
+#log {
+  background: #1a237e;
+  color: #e2e8f0;
+  padding: 20px;
+  border-radius: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  #main {
+    width: 100%;
+  }
+
+  .panel {
+    max-width: 100%;
+    position: relative;
+    top: 0;
+  }
+
+  #title {
+    font-size: 2rem;
+  }
+
+  #subtitle {
+    font-size: 1rem;
+  }
+
+  button {
+    width: 100%;
+    margin: 10px 0;
+    justify-content: center;
+  }
+
+  .currency-icon,
+  .button-icon {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    padding: 10px;
+  }
+
+  #main-display {
+    padding: 15px;
+  }
+
+  input,
+  button {
+    font-size: 0.9rem;
+  }
+
+  .currency-icon,
+  .button-icon {
+    width: 18px;
+    height: 18px;
+  }
 }

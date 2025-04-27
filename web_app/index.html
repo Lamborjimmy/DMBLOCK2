@@ -5,6 +5,7 @@
     <link rel="stylesheet" type="text/css" href="./style.css">
     <script src="./abi-decoder.js"></script>
     <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
   </head>
   <body>
     <div id="header">
@@ -23,14 +24,26 @@
       <div id="main-display">
         <article>
           <div id="rate-display">
-            <h1 id="current-rate-title"> Current rate: </h1>
-            <h3 id="eth-token-rate-display"></h3>
-            <h3 id="token-eth-rate-display"></h3>
+            <h1 id="current-rate-title">Current rate:</h1>
+              <div class="currency">
+                  <img src="ethereum.png" alt="Ethereum" class="currency-icon">
+                  <h3 id="eth-token-rate-display"></h3>
+              </div>
+              <div class="currency">
+                  <img src="shrekcoin.png" alt="Shrekcoin" class="currency-icon">
+                  <h3 id="token-eth-rate-display"></h3>
+              </div>
           </div>
           <div id="liquidity-display">
             <h1 id="current-liquidity-title">Current Liquidity:</h1>
-            <h3 id="eth-reserves"></h3>
-            <h3 id="token-reserves"></h3>
+            <div class="currency">
+              <img src="ethereum.png" alt="Ethereum" class="currency-icon">
+              <h3 id="eth-reserves"></h3>
+            </div>
+            <div class="currency">
+              <img src="shrekcoin.png" alt="Shrekcoin" class="currency-icon">
+              <h3 id="token-reserves"></h3>
+            </div>
           </div>
           <div id="swap-control">
             <h4 class="swap-control-title"> Swap Currencies: </h4>

@@ -124,6 +124,7 @@ contract TokenExchange is Ownable {
         if (!isAlreadyLP(msg.sender)) {
             lp_providers.push(msg.sender);
         }
+        console.log("Contract balance:", address(this).balance);
         lps[msg.sender] += msg.value;
         token.transferFrom(msg.sender, address(this), expectedTokens);
 
@@ -133,30 +134,30 @@ contract TokenExchange is Ownable {
 
     // Function removeLiquidity: Removes liquidity given the desired amount of ETH to remove.
     // You can change the inputs, or the scope of your function, as needed.
-    function removeLiquidity(uint max_exchange_rate, uint min_exchange_rate)
+    function removeLiquidity(uint amountETH, uint max_exchange_rate, uint min_exchange_rate)
         public 
         payable
     {
-        require(msg.value > 0, "Cant withdraw 0 ETH");
+        require(amountETH > 0, "Cant withdraw 0 ETH");
         
-        uint numerator = msg.value * token_reserves;
-        uint denominator = eth_reserves + msg.value;
+        uint numerator = amountETH * token_reserves;
+        uint denominator = eth_reserves + amountETH;
         uint expectedTokens = numerator / denominator;
 
         require(max_exchange_rate >= expectedTokens, "Exchange rate exceeds max");
         require(expectedTokens >= min_exchange_rate, "Exchange rate below min");
 
-        require(lps[msg.sender] >= msg.value, "Can't withdraw more ETH than staked");
-        require(eth_provider_reserves - msg.value > 0, "Can't withdraw ETH to drain reserves");
+        require(lps[msg.sender] >= amountETH, "Can't withdraw more ETH than staked");
+        require(eth_provider_reserves - amountETH > 0, "Can't withdraw ETH to drain reserves");
         require(token_provider_reserves - expectedTokens > 0, "Can't withdraw SHR to drain reserves");
 
-        console.log("ETH: ", eth_reserves);
-        eth_provider_reserves -= msg.value;
-        eth_reserves -= msg.value;
+        //console.log("ETH: ", eth_reserves);
+        eth_provider_reserves -= amountETH;
+        eth_reserves -= amountETH;
         token_provider_reserves -= expectedTokens;
         token_reserves -= expectedTokens;
 
-        lps[msg.sender] -= msg.value;
+        lps[msg.sender] -= amountETH;
         
         if(lps[msg.sender] == 0){
             for(uint i = 0; i < lp_providers.length; i++){
@@ -166,13 +167,13 @@ contract TokenExchange is Ownable {
                 }
             } 
         }
-        console.log("removing: ", msg.value);
-        console.log("adres:", msg.sender);
-        token.transfer(msg.sender, expectedTokens);
-        uint amountETH = msg.value * eth_reserves / token_reserves;
-        //payable(msg.sender).transfer(msg.value);
+        //console.log("Contract balance:", address(this).balance);
         payable(msg.sender).transfer(amountETH);
-        console.log("ETH AFTER: ", eth_reserves);
+        //console.log("Contract balance after:", address(this).balance);
+        token.transfer(msg.sender, expectedTokens);
+        //console.log("removing: ", amountETH);
+        //console.log("adres:", msg.sender);
+        //console.log("ETH AFTER: ", eth_reserves);
         k = token_reserves * eth_reserves;
     }
 
@@ -217,7 +218,7 @@ contract TokenExchange is Ownable {
 
     // Function swapTokensForETH: Swaps your token with ETH
     // You can change the inputs, or the scope of your function, as needed.
-    function swapTokensForETH(uint amountTokens, uint max_exchange_rate)
+    function swapTokensForETH(uint amountTokens, uint min_exchange_rate)
         external 
         payable
     {
@@ -230,38 +231,38 @@ contract TokenExchange is Ownable {
         // Kontrola, či má používateľ dostatok tokenov
         require(amountTokens <= token.balanceOf(msg.sender), "Not enough tokens to swap");
 
-        // Výpočet aktuálneho výmenného kurzu (ETH za 1 token)
-        uint current_rate = eth_reserves / token_reserves;
+        // Calculate expected ETH output using constant product formula
+        uint numerator = amountTokens * eth_reserves;
+        uint denominator = token_reserves + amountTokens;
+        uint expectedETH = numerator / denominator;
 
-        // Kontrola slippage (max_exchange_rate je minimálny kurz ETH za 1 token)
-        require(current_rate >= max_exchange_rate, "Exchange rate below min");
-
-        // Výpočet množstva ETH na poslanie (zachovanie x * y = k)
-        uint amountETH = amountTokens * eth_reserves / token_reserves;
-        require(amountETH < eth_reserves, "No ETH to swap");
+        // Check slippage (min_exchange_rate is minimum ETH to receive)
+        require(expectedETH >= min_exchange_rate, "Exchange rate below min");
+        require(expectedETH < eth_reserves, "No ETH to swap");
 
         // Kontrola, či zostane aspoň 1 ETH a 1 token v pooli
-        require(eth_reserves - amountETH >= 1, "Must leave at least 1 ETH");
+        require(eth_reserves - expectedETH >= 1, "Must leave at least 1 ETH");
         require(token_reserves + amountTokens >= 1, "Must leave at least 1 token");
 
         // Aktualizácia rezerv
         token_reserves += amountTokens;
-        eth_reserves -=  amountETH;
-        // Aktualizácia k (kvôli zaokrúhľovaniu)
-        k = token_reserves * eth_reserves;
+        eth_reserves -=  expectedETH;
+
+        // Aktualizácia k (kvôli zaokrúhľovaniu) - optional
+        //k = token_reserves * eth_reserves;
 
         // Transfer tokenov do kontraktu a ETH používateľovi
         token.transferFrom(msg.sender, address(this), amountTokens);
-        payable(msg.sender).transfer(amountETH);
+        payable(msg.sender).transfer(expectedETH);
 
         // Logovanie pre debugging (voliteľné)
-        console.log("Swapped tokens:", amountTokens, "for ETH:", amountETH);
+        console.log("Swapped tokens:", amountTokens, "for ETH:", expectedETH);
     }
 
     // Function swapETHForTokens: Swaps ETH for your tokens
     // ETH is sent to contract as msg.value
     // You can change the inputs, or the scope of your function, as needed.
-    function swapETHForTokens(uint max_exchange_rate) external payable 
+    function swapETHForTokens(uint min_exchange_rate) external payable 
     {
         // Kontrola, či je zadané množstvo ETH nenulové
         require(msg.value > 0, "Need ETH to swap");
@@ -269,31 +270,31 @@ contract TokenExchange is Ownable {
         // Kontrola, či pool existuje
         require(token_reserves > 0 && eth_reserves > 0, "Pool does not exist");
 
-        // Výpočet aktuálneho výmenného kurzu (tokeny za 1 ETH)
-        uint current_rate = token_reserves / eth_reserves;
+       // Calculate expected token output using constant product formula Δy= (Δx∗y)/(x+Δx)
+        uint numerator = msg.value * token_reserves;
+        uint denominator = eth_reserves + msg.value;
+        uint expectedTokens = numerator / denominator;
 
-        // Kontrola slippage (max_exchange_rate je maximálny kurz tokenov za 1 ETH)
-        require(current_rate <= max_exchange_rate, "Exchange rate exceeds max");
+        // Check slippage (min_exchange_rate is minimum tokens to receive)
+        require(expectedTokens >= min_exchange_rate, "Exchange rate below min");
 
-        // Výpočet množstva tokenov na poslanie (zachovanie x * y = k)
-        uint amountTokens = msg.value * token_reserves / eth_reserves;
-        require(amountTokens < token_reserves, "No tokens to swap");
+        require(expectedTokens < token_reserves, "No tokens to swap");
 
         // Kontrola, či zostane aspoň 1 ETH a 1 token v pooli
-        require(token_reserves - amountTokens >= 1, "Must leave at least 1 ETH");
+        require(token_reserves - expectedTokens >= 1, "Must leave at least 1 ETH");
         require(eth_reserves + msg.value >= 1, "Must leave at least 1 token");
 
         // Aktualizácia rezerv
-        token_reserves -= amountTokens;
+        token_reserves -= expectedTokens;
         eth_reserves += msg.value;
 
-        // Aktualizácia k (kvôli zaokrúhľovaniu)
-        k = token_reserves * eth_reserves;
+        // Aktualizácia k (kvôli zaokrúhľovaniu) - optional
+        //k = token_reserves * eth_reserves;
 
         // Transfer tokenov používateľovi (ETH už bolo prijaté cez msg.value)
-        token.transfer(msg.sender, amountTokens);
+        token.transfer(msg.sender, expectedTokens);
 
         // Logovanie pre debugging (voliteľné)
-        console.log("Swapped ETH:", msg.value, "for tokens:", amountTokens);
+        console.log("Swapped ETH:", msg.value, "for tokens:", expectedTokens);
     }
 }

@@ -498,6 +498,11 @@ const exchange_abi = [
   {
     inputs: [
       {
+        "internalType": "uint256",
+        "name": "amountETH",
+        "type": "uint256"
+      },
+      {
         internalType: "uint256",
         name: "max_exchange_rate",
         type: "uint256",
@@ -675,7 +680,7 @@ async function getPoolState() {
 
 // Note: maxSlippagePct will be passed in as an int out of 100.
 // Be sure to divide by 100 for your calculations.
-
+//----------------------------------------------------------------------------------------------//
 /*** ADD LIQUIDITY ***/
 async function addLiquidity(amountEth, maxSlippagePct) {
   const signer = provider.getSigner(defaultAccount);
@@ -760,7 +765,7 @@ async function addLiquidity(amountEth, maxSlippagePct) {
     });
   await tx.wait();
 }
-
+//----------------------------------------------------------------------------------------------//
 /*** REMOVE LIQUIDITY ***/
 async function removeLiquidity(amountEth, maxSlippagePct) {
   const signer = provider.getSigner(defaultAccount);
@@ -841,13 +846,12 @@ async function removeLiquidity(amountEth, maxSlippagePct) {
   // Odoslanie transakcie na pridanie likvidity
   const tx = await exchange_contract
     .connect(signer)
-    .removeLiquidity(maxExchangeRate, minExchangeRate, {
-      value: amountEthValue,
+    .removeLiquidity(amountEthValue, maxExchangeRate, minExchangeRate, {
       gasLimit: 200000,
     });
   await tx.wait();
 }
-
+//----------------------------------------------------------------------------------------------//
 async function removeAllLiquidity(maxSlippagePct) {
   const signer = provider.getSigner(defaultAccount);
 
@@ -931,12 +935,11 @@ async function removeAllLiquidity(maxSlippagePct) {
   const tx = await exchange_contract
     .connect(signer)
     .removeAllLiquidity(maxExchangeRate, minExchangeRate, {
-      value: amountEthValue,
-      gasLimit: ethers.BigNumber.from(200000),
+      gasLimit: 200000,
     });
   await tx.wait();
 }
-
+//----------------------------------------------------------------------------------------------//
 /*** SWAP ***/
 async function swapTokensForETH(amountToken, maxSlippagePct) {
   // Inicializácia signera
@@ -971,15 +974,28 @@ async function swapTokensForETH(amountToken, maxSlippagePct) {
   const tokenReserves = await token_contract.balanceOf(exchange_address);
   const ethReserves = await provider.getBalance(exchange_address);
 
-  // Výpočet aktuálneho výmenného kurzu (ETH za 1 token)
-  const currentRate = ethReserves.div(tokenReserves);
+  // Check pool existence
+  if (tokenReserves.eq(0) || ethReserves.eq(0)) {
+    alert("Pool nie je inicializovaný!");
+    $("#log").append(`Swap tokens for ETH error: Pool does not exist\n`);
+    return;
+  }
 
-  // Výpočet maximálneho výmenného kurzu s ohľadom na slippage
-  const slippageFactor = ethers.BigNumber.from(maxSlippagePct); //premena max slippage na BigNumber pre kontrakt
-  const hundred = ethers.BigNumber.from(100); //cislo ktore reprezentuje 100% znova v tvare BigNumber
-  const maxRateDecrease = currentRate.mul(slippageFactor).div(hundred);
-  const maxExchangeRate = currentRate.sub(maxRateDecrease);
+  // Calculate expected ETH output using constant product formula
+  const numerator = amountTokenWei.mul(ethReserves);
+  const denominator = tokenReserves.add(amountTokenWei);
+  const expectedETH = numerator.div(denominator);
 
+  const slippageDivider = 100 - maxSlippagePct;
+  const minExchangeRate = expectedETH.mul(slippageDivider).div(100);
+
+  console.log(
+    "Expected ETH:",
+    ethers.utils.formatEther(expectedETH),
+    "Min ETH:",
+    ethers.utils.formatEther(minExchangeRate)
+  );
+  
   // Schválenie tokenov pre exchange kontrakt
   const approveTx = await token_contract
     .connect(signer)
@@ -989,10 +1005,10 @@ async function swapTokensForETH(amountToken, maxSlippagePct) {
   // Odoslanie transakcie na swap
   const tx = await exchange_contract
     .connect(signer)
-    .swapTokensForETH(amountTokenWei, maxExchangeRate);
+    .swapTokensForETH(amountTokenWei, minExchangeRate);
   await tx.wait();
 }
-
+//----------------------------------------------------------------------------------------------//
 async function swapETHForTokens(amountEth, maxSlippagePct) {
   // Konverzia amountEth na Wei
   const amountEthValue = ethers.utils.parseEther(amountEth.toString());
@@ -1012,24 +1028,53 @@ async function swapETHForTokens(amountEth, maxSlippagePct) {
     return;
   }
 
-  // Získanie aktuálnych rezerv poolu
+  // Get pool reserves
   const tokenReserves = await token_contract.balanceOf(exchange_address);
   const ethReserves = await provider.getBalance(exchange_address);
+  const decimals = await token_contract.decimals();
 
-  // Výpočet aktuálneho výmenného kurzu (tokeny za 1 ETH)
-  const currentRate = tokenReserves.div(ethReserves);
+  // Check pool existence
+  if (tokenReserves.eq(0) || ethReserves.eq(0)) {
+    alert("Pool nie je inicializovaný!");
+    $("#log").append(`Swap ETH for tokens error: Pool does not exist\n`);
+    return;
+  }
 
-  // Výpočet maximálneho výmenného kurzu s ohľadom na slippage
-  const slippageFactor = ethers.BigNumber.from(maxSlippagePct);
-  const hundred = ethers.BigNumber.from(100);
-  const maxRateIncrease = currentRate.mul(slippageFactor).div(hundred);
-  const maxExchangeRate = currentRate.add(maxRateIncrease); // currentRate * (1 + maxSlippagePct/100)
+  // Calculate expected token output using constant product formula
+  const numerator = amountEthValue.mul(tokenReserves);
+  const denominator = ethReserves.add(amountEthValue);
+  const expectedTokens = numerator.div(denominator);
+
+  // Check sufficient reserves
+  if (tokenReserves.lte(expectedTokens)) {
+    alert(
+      `Nedostatok SHR tokenov v pooli! Pool má ${ethers.utils.formatUnits(
+        tokenReserves,
+        decimals
+      )} SHR, ale požadujete ${ethers.utils.formatUnits(
+        expectedTokens,
+        decimals
+      )} SHR.`
+    );
+    $("#log").append(`Swap ETH for tokens error: Insufficient token reserves\n`);
+    return;
+  }
+  const slippageDivider = 100 - maxSlippagePct;
+  const minExchangeRate = expectedTokens.mul(slippageDivider).div(100);
+
+  console.log(
+    "Expected tokens:",
+    ethers.utils.formatUnits(expectedTokens, decimals),
+    "Min tokens:",
+    ethers.utils.formatUnits(minExchangeRate, decimals)
+  );
 
   // Odoslanie transakcie na swap
   const tx = await exchange_contract
     .connect(signer)
-    .swapETHForTokens(maxExchangeRate, {
+    .swapETHForTokens(minExchangeRate, {
       value: amountEthValue,
+      gasLimit: 200000,
     });
 
   await tx.wait();
