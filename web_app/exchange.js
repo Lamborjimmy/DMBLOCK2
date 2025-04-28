@@ -498,9 +498,9 @@ const exchange_abi = [
   {
     inputs: [
       {
-        "internalType": "uint256",
-        "name": "amountETH",
-        "type": "uint256"
+        internalType: "uint256",
+        name: "amountETH",
+        type: "uint256",
       },
       {
         internalType: "uint256",
@@ -926,20 +926,18 @@ async function removeAllLiquidity(maxSlippagePct) {
     ethers.utils.formatUnits(minExchangeRate, decimals)
   );
 
-  try {
-    console.log(
-      "Removing all liquidity: ETH:",
-      amountEth,
-      "Expected tokens:",
-      ethers.utils.formatUnits(expectedTokens, decimals)
-    );
-    const tx = await exchange_contract
-      .connect(signer)
-      .removeAllLiquidity(maxExchangeRate, minExchangeRate, {
-        gasLimit: 200000,
-      });
-    await tx.wait();
-  } catch {}
+  console.log(
+    "Removing all liquidity: ETH:",
+    amountEth,
+    "Expected tokens:",
+    ethers.utils.formatUnits(expectedTokens, decimals)
+  );
+  const tx = await exchange_contract
+    .connect(signer)
+    .removeAllLiquidity(maxExchangeRate, minExchangeRate, {
+      gasLimit: 200000,
+    });
+  await tx.wait();
 }
 //----------------------------------------------------------------------------------------------//
 /*** SWAP ***/
@@ -996,7 +994,7 @@ async function swapTokensForETH(amountToken, maxSlippagePct) {
     "Min ETH:",
     ethers.utils.formatEther(minExchangeRate)
   );
-  
+
   // Schválenie tokenov pre exchange kontrakt
   const approveTx = await token_contract
     .connect(signer)
@@ -1057,14 +1055,16 @@ async function swapETHForTokens(amountEth, maxSlippagePct) {
         decimals
       )} SHR.`
     );
-    $("#log").append(`Swap ETH for tokens error: Insufficient token reserves\n`);
+    $("#log").append(
+      `Swap ETH for tokens error: Insufficient token reserves\n`
+    );
     return;
   }
 
   const slippageDivider = 100 - maxSlippagePct;
   const minExchangeRate = expectedTokens.mul(slippageDivider).div(100);
 
-   console.log(
+  console.log(
     "Expected tokens:",
     ethers.utils.formatUnits(expectedTokens, decimals),
     "Min tokens:",
@@ -1221,12 +1221,12 @@ const sanityCheck = async function () {
     var user_tokens1 = await token_contract
       .connect(provider.getSigner(defaultAccount))
       .balanceOf(defaultAccount);
-      //console.log("Token liquidity diff:", start_state.token_liquidity - expected_tokens_received - state1.token_liquidity);
-      //console.log("ETH liquidity diff:", state1.eth_liquidity - start_state.eth_liquidity);
-      //console.log("start_tokens:", Number(start_tokens));
-      //console.log("expected_tokens_received:", expected_tokens_received);
-      //console.log("user_tokens1:", Number(user_tokens1));
-      //console.log("User token diff:", Number(start_tokens) + expected_tokens_received - Number(user_tokens1));
+    //console.log("Token liquidity diff:", start_state.token_liquidity - expected_tokens_received - state1.token_liquidity);
+    //console.log("ETH liquidity diff:", state1.eth_liquidity - start_state.eth_liquidity);
+    //console.log("start_tokens:", Number(start_tokens));
+    //console.log("expected_tokens_received:", expected_tokens_received);
+    //console.log("user_tokens1:", Number(user_tokens1));
+    //console.log("User token diff:", Number(start_tokens) + expected_tokens_received - Number(user_tokens1));
     score += check(
       "Testing simple exchange of ETH to token",
       swap_fee[0],
@@ -1237,7 +1237,9 @@ const sanityCheck = async function () {
       ) < 5 &&
         state1.eth_liquidity - start_state.eth_liquidity === 100 &&
         Math.abs(
-          Number(start_tokens) / 1e18 + expected_tokens_received - Number(user_tokens1) / 1e18
+          Number(start_tokens) / 1e18 +
+            expected_tokens_received -
+            Number(user_tokens1) / 1e18
         ) < 5
     );
 
@@ -1272,7 +1274,8 @@ const sanityCheck = async function () {
             (state2.token_liquidity + expected_tokens_added)
         ) < 5 &&
         Math.abs(
-          Number(user_tokens3) / 1e18 - (Number(user_tokens2) / 1e18 - expected_tokens_added)
+          Number(user_tokens3) / 1e18 -
+            (Number(user_tokens2) / 1e18 - expected_tokens_added)
         ) < 5
     );
 
@@ -1292,7 +1295,7 @@ const sanityCheck = async function () {
         ) < 5 &&
         Math.abs(
           Number(user_tokens4) / 1e18 -
-            (Number(user_tokens3) / 1e18   + expected_tokens_removed)
+            (Number(user_tokens3) / 1e18 + expected_tokens_removed)
         ) < 5
     );
 
@@ -1302,9 +1305,9 @@ const sanityCheck = async function () {
     var user_tokens5 = await token_contract
       .connect(provider.getSigner(defaultAccount))
       .balanceOf(defaultAccount);
-      //console.log("ETH liquidity diff:", state5.eth_liquidity - (state4.eth_liquidity - 90));
-      //console.log("Token liquidity diff:",state5.token_liquidity - (state4.token_liquidity - expected_tokens_removed));
-      //console.log("User token diff:",Number(user_tokens5) / 1e18 - (Number(user_tokens4) / 1e18 + expected_tokens_removed));
+    //console.log("ETH liquidity diff:", state5.eth_liquidity - (state4.eth_liquidity - 90));
+    //console.log("Token liquidity diff:",state5.token_liquidity - (state4.token_liquidity - expected_tokens_removed));
+    //console.log("User token diff:",Number(user_tokens5) / 1e18 - (Number(user_tokens4) / 1e18 + expected_tokens_removed));
     score += check(
       "Test removing all liquidity",
       swap_fee[0],
@@ -1440,6 +1443,6 @@ const sanityCheck = async function () {
 // Sleep 3s to ensure init() finishes before sanityCheck() runs on first load.
 // If you run into sanityCheck() errors due to init() not finishing, please extend the sleep time.
 
- setTimeout(function () {
+setTimeout(function () {
   sanityCheck();
- }, 3000);
+}, 3000);

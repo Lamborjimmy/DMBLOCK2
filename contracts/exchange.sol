@@ -193,11 +193,18 @@ contract TokenExchange is Ownable {
 
         require(eth_reserves - value > 0, "Can't withdraw ETH to drain reserves");
         require(token_reserves- expectedTokens > 0, "Can't withdraw SHR to drain reserves");
-
+        
         eth_provider_reserves -= value;
         eth_reserves -= value;
-        token_provider_reserves -= expectedTokens;
+        if(token_provider_reserves < expectedTokens  ){
+            token_provider_reserves = 0;
+        }
+        else{
+            token_provider_reserves -= expectedTokens;
+        }
+        
         token_reserves -= expectedTokens;
+    
 
         token.transfer(msg.sender, expectedTokens);
         payable(msg.sender).transfer(value);
