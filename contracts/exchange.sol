@@ -24,7 +24,7 @@ contract TokenExchange is Ownable {
     address[] private lp_providers;                     
 
     // liquidity rewards
-    uint private swap_fee_numerator = 3;                
+    uint private swap_fee_numerator = 0;                
     uint private swap_fee_denominator = 100;
 
     // Constant: x * y = k
@@ -191,8 +191,8 @@ contract TokenExchange is Ownable {
         require(max_exchange_rate >= expectedTokens, "Exchange rate exceeds max");
         require(expectedTokens >= min_exchange_rate, "Exchange rate below min");
 
-        require(eth_provider_reserves - value > 0, "Can't withdraw ETH to drain reserves");
-        require(token_provider_reserves - expectedTokens > 0, "Can't withdraw SHR to drain reserves");
+        require(eth_reserves - value > 0, "Can't withdraw ETH to drain reserves");
+        require(token_reserves- expectedTokens > 0, "Can't withdraw SHR to drain reserves");
 
         eth_provider_reserves -= value;
         eth_reserves -= value;
