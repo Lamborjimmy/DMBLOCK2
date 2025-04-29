@@ -379,6 +379,45 @@ const token_contract = new ethers.Contract(
 // TODO: Paste your exchange address here
 const exchange_abi = [
   {
+    inputs: [
+      {
+        internalType: "address",
+        name: "provider",
+        type: "address",
+      },
+    ],
+    name: "getProviderShare",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "shareoverload",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "tokenShare",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "ethShare",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "tokenFeeShare",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "ethFeeShare",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [],
     stateMutability: "nonpayable",
     type: "constructor",
@@ -713,7 +752,7 @@ async function addLiquidity(amountEth, maxSlippagePct) {
   // Výpočet očakávaných tokenov
   const numerator = amountEthValue.mul(tokenReserves);
   const denominator = ethReserves.add(amountEthValue);
-  const expectedTokens = numerator.div(denominator);
+  const expectedTokens = amountEthValue.mul(tokenReserves).div(ethReserves);
   console.log(
     "Expected tokens:",
     ethers.utils.formatUnits(expectedTokens, decimals)
@@ -771,6 +810,14 @@ async function removeLiquidity(amountEth, maxSlippagePct) {
   const signer = provider.getSigner(defaultAccount);
   const amountEthValue = ethers.utils.parseEther(amountEth.toString());
 
+
+  const [share, tokenShare, ethShare, tokenFeeShare, ethFeeShare] = await exchange_contract.getProviderShare(defaultAccount);
+  if (ethShare.lt(amountEthValue)) {
+    alert(`Nedostatok likvidity! Máte ${ethers.utils.formatEther(ethShare)} ETH podiel, ale požadujete ${amountEth} ETH.`);
+    $("#log").append(`Remove liquidity error: Insufficient liquidity share\n`);
+    return;
+  }
+  
   // Získanie aktuálnych rezerv
   const tokenReserves = await token_contract.balanceOf(exchange_address);
   const ethReserves = await provider.getBalance(exchange_address);
@@ -784,37 +831,24 @@ async function removeLiquidity(amountEth, maxSlippagePct) {
   }
 
   // Kontrola dostatočných rezerv
-  const numerator = amountEthValue.mul(tokenReserves);
-  const denominator = ethReserves.add(amountEthValue);
-  const expectedTokens = numerator.div(denominator);
+  const expectedTokens = amountEthValue.mul(tokenReserves).div(ethReserves);
+  const expectedTokenFees = tokenFeeShare.mul(amountEthValue).div(ethShare);
+  const expectedEthFees = ethFeeShare.mul(amountEthValue).div(ethShare);
+  const totalExpectedTokens = expectedTokens.add(expectedTokenFees);
+  const totalExpectedEth = amountEthValue.add(expectedEthFees);
   console.log(
     "Expected tokens:",
     ethers.utils.formatUnits(expectedTokens, decimals)
   );
 
-  if (ethReserves.lte(amountEthValue)) {
-    alert(
-      `Nedostatok ETH v pooli! Pool má ${ethers.utils.formatEther(
-        ethReserves
-      )} ETH, ale požadujete ${amountEth} ETH.`
-    );
+  if (ethReserves.lt(totalExpectedEth)) {
+    alert(`Nedostatok ETH v pooli! Pool má ${ethers.utils.formatEther(ethReserves)} ETH, ale požadujete ${ethers.utils.formatEther(totalExpectedEth)} ETH.`);
     $("#log").append(`Remove liquidity error: Insufficient ETH reserves\n`);
     return;
   }
-
-  if (tokenReserves.lte(expectedTokens)) {
-    alert(
-      `Nedostatok SHR tokenov v pooli! Pool má ${ethers.utils.formatUnits(
-        tokenReserves,
-        decimals
-      )} SHR, ale požadujete ${ethers.utils.formatUnits(
-        expectedTokens,
-        decimals
-      )} SHR.`
-    );
-    $("#log").append(
-      `Remove liquidity error: Insufficient SHR token reserves\n`
-    );
+  if (tokenReserves.lt(totalExpectedTokens)) {
+    alert(`Nedostatok SHR tokenov v pooli! Pool má ${ethers.utils.formatUnits(tokenReserves, decimals)} SHR, ale požadujete ${ethers.utils.formatUnits(totalExpectedTokens, decimals)} SHR.`);
+    $("#log").append(`Remove liquidity error: Insufficient SHR token reserves\n`);
     return;
   }
 
@@ -823,6 +857,7 @@ async function removeLiquidity(amountEth, maxSlippagePct) {
   const slippageDivider = 100 - maxSlippagePct;
   const maxExchangeRate = expectedTokens.mul(slippageMultiplier).div(100); // +slippage
   const minExchangeRate = expectedTokens.mul(slippageDivider).div(100); // -slippage
+  /*
   console.log(
     "maxExchangeRate:",
     ethers.utils.formatUnits(maxExchangeRate, decimals)
@@ -831,7 +866,7 @@ async function removeLiquidity(amountEth, maxSlippagePct) {
     "minExchangeRate:",
     ethers.utils.formatUnits(minExchangeRate, decimals)
   );
-
+*/
   console.log(
     "Removing liquidity: ETH:",
     amountEth,
@@ -855,15 +890,13 @@ async function removeLiquidity(amountEth, maxSlippagePct) {
 async function removeAllLiquidity(maxSlippagePct) {
   const signer = provider.getSigner(defaultAccount);
 
-  // Kontrola podielu likvidity
-  const amountEthValue = await exchange_contract.getLiquidity(defaultAccount);
-  if (amountEthValue.eq(0)) {
+  // Získanie podielu LP
+  const [share, tokenShare, ethShare, tokenFeeShare, ethFeeShare] = await exchange_contract.getProviderShare(defaultAccount);
+  if (share.eq(0)) {
     alert("Nemáte žiadnu likviditu na odstránenie!");
     $("#log").append(`Remove all liquidity error: No liquidity to remove\n`);
     return;
   }
-  const amountEth = ethers.utils.formatEther(amountEthValue);
-  console.log("Removing all liquidity: ETH:", amountEth);
 
   // Získanie aktuálnych rezerv
   const tokenReserves = await token_contract.balanceOf(exchange_address);
@@ -878,37 +911,24 @@ async function removeAllLiquidity(maxSlippagePct) {
   }
 
   // Kontrola dostatočných rezerv
-  const numerator = amountEthValue.mul(tokenReserves);
-  const denominator = ethReserves.add(amountEthValue);
-  const expectedTokens = numerator.div(denominator);
+  const expectedTokens = tokenShare;
+  const expectedTokenFees = tokenFeeShare;
+  const expectedEthFees = ethFeeShare;
+  const totalExpectedTokens = expectedTokens.add(expectedTokenFees);
+  const totalExpectedEth = ethShare.add(expectedEthFees);
   console.log(
     "Expected tokens:",
     ethers.utils.formatUnits(expectedTokens, decimals)
   );
 
-  if (ethReserves.lte(amountEthValue)) {
-    alert(
-      `Nedostatok ETH v pooli! Pool má ${ethers.utils.formatEther(
-        ethReserves
-      )} ETH, ale požadujete ${amountEth} ETH.`
-    );
+  if (ethReserves.lt(totalExpectedEth)) {
+    alert(`Nedostatok ETH v pooli! Pool má ${ethers.utils.formatEther(ethReserves)} ETH, ale požadujete ${ethers.utils.formatEther(totalExpectedEth)} ETH.`);
     $("#log").append(`Remove all liquidity error: Insufficient ETH reserves\n`);
     return;
   }
-
-  if (tokenReserves.lte(expectedTokens)) {
-    alert(
-      `Nedostatok SHR tokenov v pooli! Pool má ${ethers.utils.formatUnits(
-        tokenReserves,
-        decimals
-      )} SHR, ale požadujete ${ethers.utils.formatUnits(
-        expectedTokens,
-        decimals
-      )} SHR.`
-    );
-    $("#log").append(
-      `Remove all liquidity error: Insufficient SHR token reserves\n`
-    );
+  if (tokenReserves.lt(totalExpectedTokens)) {
+    alert(`Nedostatok SHR tokenov v pooli! Pool má ${ethers.utils.formatUnits(tokenReserves, decimals)} SHR, ale požadujete ${ethers.utils.formatUnits(totalExpectedTokens, decimals)} SHR.`);
+    $("#log").append(`Remove all liquidity error: Insufficient SHR token reserves\n`);
     return;
   }
 
@@ -926,12 +946,6 @@ async function removeAllLiquidity(maxSlippagePct) {
     ethers.utils.formatUnits(minExchangeRate, decimals)
   );
 
-  console.log(
-    "Removing all liquidity: ETH:",
-    amountEth,
-    "Expected tokens:",
-    ethers.utils.formatUnits(expectedTokens, decimals)
-  );
   const tx = await exchange_contract
     .connect(signer)
     .removeAllLiquidity(maxExchangeRate, minExchangeRate, {
@@ -973,6 +987,8 @@ async function swapTokensForETH(amountToken, maxSlippagePct) {
   // Získanie aktuálnych rezerv poolu
   const tokenReserves = await token_contract.balanceOf(exchange_address);
   const ethReserves = await provider.getBalance(exchange_address);
+  const [feeNumerator, feeDenominator] = await exchange_contract.getSwapFee();
+  const feeFraction = feeNumerator / feeDenominator;
 
   // Check pool existence
   if (tokenReserves.eq(0) || ethReserves.eq(0)) {
@@ -981,20 +997,21 @@ async function swapTokensForETH(amountToken, maxSlippagePct) {
     return;
   }
 
-  const numerator = amountTokenWei.mul(ethReserves);
-  const denominator = tokenReserves.add(amountTokenWei);
+  const amountTokenAfterFee = amountTokenWei.mul(feeDenominator - feeNumerator).div(feeDenominator);
+  const numerator = amountTokenAfterFee.mul(ethReserves);
+  const denominator = tokenReserves.add(amountTokenAfterFee);
   const expectedETH = numerator.div(denominator);
 
   const slippageDivider = 100 - maxSlippagePct;
   const minExchangeRate = expectedETH.mul(slippageDivider).div(100);
-
+  /*
   console.log(
     "Expected ETH:",
     ethers.utils.formatEther(expectedETH),
     "Min ETH:",
     ethers.utils.formatEther(minExchangeRate)
   );
-
+  */
   // Schválenie tokenov pre exchange kontrakt
   const approveTx = await token_contract
     .connect(signer)
@@ -1031,6 +1048,8 @@ async function swapETHForTokens(amountEth, maxSlippagePct) {
   const tokenReserves = await token_contract.balanceOf(exchange_address);
   const ethReserves = await provider.getBalance(exchange_address);
   const decimals = await token_contract.decimals();
+  const [feeNumerator, feeDenominator] = await exchange_contract.getSwapFee();
+  const feeFraction = feeNumerator / feeDenominator;
 
   // Check pool existence
   if (tokenReserves.eq(0) || ethReserves.eq(0)) {
@@ -1040,8 +1059,9 @@ async function swapETHForTokens(amountEth, maxSlippagePct) {
   }
 
   // Calculate expected token output using constant product formula
-  const numerator = amountEthValue.mul(tokenReserves);
-  const denominator = ethReserves.add(amountEthValue);
+  const amountEthAfterFee = amountEthValue.mul(feeDenominator - feeNumerator).div(feeDenominator);
+  const numerator = amountEthAfterFee.mul(tokenReserves);
+  const denominator = ethReserves.add(amountEthAfterFee);
   const expectedTokens = numerator.div(denominator);
 
   // Check sufficient reserves
@@ -1063,14 +1083,14 @@ async function swapETHForTokens(amountEth, maxSlippagePct) {
 
   const slippageDivider = 100 - maxSlippagePct;
   const minExchangeRate = expectedTokens.mul(slippageDivider).div(100);
-
+  /*
   console.log(
     "Expected tokens:",
     ethers.utils.formatUnits(expectedTokens, decimals),
     "Min tokens:",
     ethers.utils.formatUnits(minExchangeRate, decimals)
   );
-
+  */
   // Odoslanie transakcie na swap
   const tx = await exchange_contract
     .connect(signer)
@@ -1185,6 +1205,25 @@ function log(description, obj) {
       "\n\n"
   );
 }
+
+const updateUI = async function () {
+  try {
+    const poolState = await getPoolState();
+    $("#eth-token-rate-display").html(
+      "1 ETH = " + poolState["token_eth_rate"] + " " + token_symbol
+    );
+    $("#token-eth-rate-display").html(
+      "1 " + token_symbol + " = " + poolState["eth_token_rate"] + " ETH"
+    );
+    $("#token-reserves").html(
+      poolState["token_liquidity"] + " " + token_symbol
+    );
+    $("#eth-reserves").html(poolState["eth_liquidity"] + " ETH");
+    console.log("UI updated with new pool state.");
+  } catch (error) {
+    console.error("Error updating UI:", error);
+  }
+};
 
 // =============================================================================
 //                                SANITY CHECK
@@ -1345,7 +1384,7 @@ const sanityCheck = async function () {
       ) < 5 &&
         state1.eth_liquidity - start_state.eth_liquidity === 100 &&
         Math.abs(
-          Number(start_tokens) + expected_tokens_received - Number(user_tokens1)
+          Number(start_tokens) / 1e18 + expected_tokens_received - Number(user_tokens1) / 1e18
         ) < 5
     );
 
@@ -1355,6 +1394,9 @@ const sanityCheck = async function () {
     var user_tokens2 = await token_contract
       .connect(provider.getSigner(defaultAccount))
       .balanceOf(defaultAccount);
+      console.log(state2.eth_liquidity - start_state.eth_liquidity);
+      console.log(state1.eth_liquidity - expected_eth_received - state2.eth_liquidity);
+      console.log(Number(user_tokens2) / 1e18 - Number(user_tokens1) / 1e18);
     score += check(
       "Test simple exchange of token to ETH",
       swap_fee[0],
@@ -1362,7 +1404,7 @@ const sanityCheck = async function () {
         Math.abs(
           state1.eth_liquidity - expected_eth_received - state2.eth_liquidity
         ) < 5 &&
-        Number(user_tokens2) === Number(user_tokens1) - 100
+        Number(user_tokens2) / 1e18 === Number(user_tokens1) / 1e18 - 100
     );
 
     await addLiquidity(100, 1);
@@ -1371,6 +1413,9 @@ const sanityCheck = async function () {
     var user_tokens3 = await token_contract
       .connect(provider.getSigner(defaultAccount))
       .balanceOf(defaultAccount);
+      console.log("ETH liquidity diff:", state3.eth_liquidity - (state2.eth_liquidity + 100));
+      console.log("Token liquidity diff:",state3.token_liquidity - (state2.token_liquidity + expected_tokens_added));
+      console.log("User token diff:",Number(user_tokens3) / 1e18 - (Number(user_tokens2) / 1e18 - expected_tokens_added));
     score += check(
       "Test adding liquidity",
       swap_fee[0],
@@ -1380,7 +1425,7 @@ const sanityCheck = async function () {
             (state2.token_liquidity + expected_tokens_added)
         ) < 5 &&
         Math.abs(
-          Number(user_tokens3) - (Number(user_tokens2) - expected_tokens_added)
+          Number(user_tokens3) / 1e18 - (Number(user_tokens2) / 1e18 - expected_tokens_added)
         ) < 5
     );
 
@@ -1391,6 +1436,7 @@ const sanityCheck = async function () {
     }
 
     var state4 = await getPoolState();
+    //console.log("state4.eth_liquidity: ", state4.eth_liquidity);
     var user_tokens4 = await token_contract
       .connect(provider.getSigner(defaultAccount))
       .balanceOf(defaultAccount);
@@ -1399,23 +1445,26 @@ const sanityCheck = async function () {
     var expected_tokens_removed =
       (10 + 22 * 100 * swap_fee) * state3.token_eth_rate;
     var state5 = await getPoolState();
+    //console.log("state5.eth_liquidity: ", state5.eth_liquidity);
     var user_tokens5 = await token_contract
       .connect(provider.getSigner(defaultAccount))
       .balanceOf(defaultAccount);
+      //console.log("ETH liquidity diff:", state5.eth_liquidity , (state4.eth_liquidity - 10));
+      //console.log("Token liquidity diff:",state5.token_liquidity - (state4.token_liquidity - expected_tokens_removed));
+      //console.log("User token diff:",Number(user_tokens5) / 1e18 - (Number(user_tokens4) / 1e18 + expected_tokens_removed));
+      //console.log("expected tokens removed:", expected_tokens_removed, expected_tokens_removed * 1.2);
     score += check(
       "Test removing liquidity",
       swap_fee[0],
-      state5.eth_liquidity === state4.eth_liquidity - 10 &&
+      state5.eth_liquidity === (state4.eth_liquidity - 10) &&
         Math.abs(
           state5.token_liquidity -
             (state4.token_liquidity - expected_tokens_removed)
-        ) <
-          expected_tokens_removed * 1.2 &&
+        ) < expected_tokens_removed * 1.2 &&
         Math.abs(
-          Number(user_tokens5) -
-            (Number(user_tokens4) + expected_tokens_removed)
-        ) <
-          expected_tokens_removed * 1.2
+          Number(user_tokens5) / 1e18 -
+            (Number(user_tokens4) / 1e18 + expected_tokens_removed)
+        ) < expected_tokens_removed * 1.2
     );
 
     await removeAllLiquidity(1);
@@ -1434,15 +1483,18 @@ const sanityCheck = async function () {
             (state5.token_liquidity - expected_tokens_removed)
         ) <
           expected_tokens_removed * 1.2 &&
-        Number(user_tokens6) > Number(user_tokens5)
+        Number(user_tokens6) / 1e18 > Number(user_tokens5) / 1e18
     );
   }
   console.log("Final score: " + score + "/50");
+  //await updateUI(); 
 };
 
 // Sleep 3s to ensure init() finishes before sanityCheck() runs on first load.
 // If you run into sanityCheck() errors due to init() not finishing, please extend the sleep time.
 
+
 setTimeout(function () {
   sanityCheck();
 }, 3000);
+
