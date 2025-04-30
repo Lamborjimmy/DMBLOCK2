@@ -1144,7 +1144,7 @@ $("#swap-eth").click(function () {
   defaultAccount = $("#myaccount").val(); //sets the default account
   swapETHForTokens($("#amt-to-swap").val(), $("#max-slippage-swap").val()).then(
     (response) => {
-      window.location.reload(true); // refreshes the page after add_IOU returns and the promise is unwrapped
+      updateUI(); // refreshes the page after add_IOU returns and the promise is unwrapped
     }
   );
 });
@@ -1154,7 +1154,7 @@ $("#swap-token").click(function () {
   defaultAccount = $("#myaccount").val(); //sets the default account
   swapTokensForETH($("#amt-to-swap").val(), $("#max-slippage-swap").val()).then(
     (response) => {
-      window.location.reload(true); // refreshes the page after add_IOU returns and the promise is unwrapped
+      updateUI(); // refreshes the page after add_IOU returns and the promise is unwrapped
     }
   );
 });
@@ -1165,7 +1165,7 @@ $("#add-liquidity").click(function () {
   defaultAccount = $("#myaccount").val(); //sets the default account
   addLiquidity($("#amt-eth").val(), $("#max-slippage-liquid").val()).then(
     (response) => {
-      window.location.reload(true); // refreshes the page after add_IOU returns and the promise is unwrapped
+      updateUI(); // refreshes the page after add_IOU returns and the promise is unwrapped
     }
   );
 });
@@ -1175,7 +1175,7 @@ $("#remove-liquidity").click(function () {
   defaultAccount = $("#myaccount").val(); //sets the default account
   removeLiquidity($("#amt-eth").val(), $("#max-slippage-liquid").val()).then(
     (response) => {
-      window.location.reload(true); // refreshes the page after add_IOU returns and the promise is unwrapped
+      updateUI(); // refreshes the page after add_IOU returns and the promise is unwrapped
     }
   );
 });
@@ -1184,7 +1184,7 @@ $("#remove-liquidity").click(function () {
 $("#remove-all-liquidity").click(function () {
   defaultAccount = $("#myaccount").val(); //sets the default account
   removeAllLiquidity($("#max-slippage-liquid").val()).then((response) => {
-    window.location.reload(true); // refreshes the page after add_IOU returns and the promise is unwrapped
+    updateUI(); // refreshes the page after add_IOU returns and the promise is unwrapped
   });
 });
 
@@ -1220,6 +1220,12 @@ const updateUI = async function () {
     );
     $("#eth-reserves").html(poolState["eth_liquidity"] + " ETH");
     console.log("UI updated with new pool state.");
+
+    // Clear all input fields
+    $("#amt-to-swap").val("");
+    $("#max-slippage-swap").val("");
+    $("#amt-eth").val("");
+    $("#max-slippage-liquid").val("");
   } catch (error) {
     console.error("Error updating UI:", error);
   }
@@ -1487,7 +1493,7 @@ const sanityCheck = async function () {
     );
   }
   console.log("Final score: " + score + "/50");
-  //await updateUI(); 
+  updateUI(); 
 };
 
 // Sleep 3s to ensure init() finishes before sanityCheck() runs on first load.
