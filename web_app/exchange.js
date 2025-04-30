@@ -792,7 +792,7 @@ async function addLiquidity(amountEth, maxSlippagePct) {
   // Schválenie tokenov pre exchange kontrakt
   const approveTx = await token_contract
     .connect(signer)
-    .approve(exchange_address, amountEthValue);
+    .approve(exchange_address, expectedTokens);
   await approveTx.wait();
 
   // Odoslanie transakcie na pridanie likvidity

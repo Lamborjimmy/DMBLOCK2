@@ -119,7 +119,7 @@ contract TokenExchange is Ownable {
         //Vypocet ocakavanych tokenov
         //uint numerator = msg.value * token_reserves;
         //uint denominator = eth_reserves + msg.value;
-        uint expectedTokens = msg.value * (token_reserves / eth_reserves);
+        uint expectedTokens = (msg.value * token_reserves) / eth_reserves;
         //Kontrola poctu tokenov
         require(token.balanceOf(msg.sender) >= expectedTokens, "Not enough SHR tokens");
 
@@ -168,28 +168,28 @@ contract TokenExchange is Ownable {
         uint lpShareProportion = (lps[msg.sender] * 1e18) / totalShares; // Škálovanie pre presnosť
         uint lpEthShare = (eth_reserves * lpShareProportion) / 1e18;
         uint lpTokenShare = (token_reserves * lpShareProportion) / 1e18;
-        uint lpEthFeeShare = (totalEthFees * lpShareProportion) / 1e18;
-        uint lpTokenFeeShare = (totalTokenFees * lpShareProportion) / 1e18;
+        //uint lpEthFeeShare = (totalEthFees * lpShareProportion) / 1e18;
+        //uint lpTokenFeeShare = (totalTokenFees * lpShareProportion) / 1e18;
 
         // Kontrola celkového nároku
-        require(lpEthShare + lpEthFeeShare >= amountETH, "Insufficient ETH share (including fees)");
-        require(lpTokenShare + lpTokenFeeShare >= expectedTokens, "Insufficient token share (including fees)");
+        require(lpEthShare  >= amountETH, "Insufficient ETH share (including fees)");
+        require(lpTokenShare >= expectedTokens, "Insufficient token share (including fees)");
 
         // Kontrola, aby nedošlo k vyčerpaniu rezerv
         require(eth_reserves > amountETH, "Cannot drain ETH reserves");
         require(token_reserves > expectedTokens, "Cannot drain token reserves");
 
         // Určenie zdrojov (rezervy vs. poplatky)
-        uint ethFromReserves = lpEthShare < amountETH ? lpEthShare : amountETH;
-        uint ethFromFees = lpEthShare < amountETH ? amountETH - lpEthShare : 0;
-        uint tokensFromReserves = lpTokenShare < expectedTokens ? lpTokenShare : expectedTokens;
-        uint tokensFromFees = lpTokenShare < expectedTokens ? expectedTokens - lpTokenShare : 0;
+        //uint ethFromReserves = lpEthShare < amountETH ? lpEthShare : amountETH;
+        //uint ethFromFees = lpEthShare < amountETH ? amountETH - lpEthShare : 0;
+        //uint tokensFromReserves = lpTokenShare < expectedTokens ? lpTokenShare : expectedTokens;
+        //uint tokensFromFees = lpTokenShare < expectedTokens ? expectedTokens - lpTokenShare : 0;
 
         // Aktualizácia rezerv a poplatkov
-        eth_reserves -= ethFromReserves;
-        token_reserves -= tokensFromReserves;
-        totalEthFees -= ethFromFees;
-        totalTokenFees -= tokensFromFees;
+        eth_reserves -= amountETH;
+        token_reserves -= expectedTokens;
+        //totalEthFees -= ethFromFees;
+        //totalTokenFees -= tokensFromFees;
 
         // Aktualizácia podielov
         lps[msg.sender] -= sharesToBurn;
@@ -222,9 +222,9 @@ contract TokenExchange is Ownable {
         //uint numerator = value * token_reserves;
         //uint denominator = eth_reserves + value;
         uint amountETH = (value * eth_reserves) / totalShares;
-        uint expectedTokens = value * (token_reserves / eth_reserves);
-        uint tokenFeeShare = (totalTokenFees * value) / totalShares;
-        uint ethFeeShare = (totalEthFees * value) / totalShares;
+        uint expectedTokens = (value * token_reserves) / eth_reserves;
+        //uint tokenFeeShare = (totalTokenFees * value) / totalShares;
+        //uint ethFeeShare = (totalEthFees * value) / totalShares;
 
         require(max_exchange_rate >= expectedTokens, "Exchange rate exceeds max");
         require(expectedTokens >= min_exchange_rate, "Exchange rate below min");
@@ -232,10 +232,10 @@ contract TokenExchange is Ownable {
         require(eth_reserves - value > 0, "Can't withdraw ETH to drain reserves");
         require(token_reserves- expectedTokens > 0, "Can't withdraw SHR to drain reserves");
         
-        eth_reserves -= value;
+        eth_reserves -= amountETH;
         token_reserves -= expectedTokens;
-        totalTokenFees -= tokenFeeShare;
-        totalEthFees -= ethFeeShare;
+        //totalTokenFees -= tokenFeeShare;
+        //totalEthFees -= ethFeeShare;
         totalShares -= value;
         lps[msg.sender] = 0;
 
@@ -247,8 +247,8 @@ contract TokenExchange is Ownable {
             }
     
 
-        token.transfer(msg.sender, expectedTokens + tokenFeeShare);
-        payable(msg.sender).transfer(amountETH + ethFeeShare);
+        token.transfer(msg.sender, expectedTokens);
+        payable(msg.sender).transfer(amountETH);
         k = token_reserves * eth_reserves;
     }
     /***  Define additional functions for liquidity fees here as needed ***/
@@ -289,9 +289,9 @@ contract TokenExchange is Ownable {
         require(token_reserves + amountTokens >= 1, "Must leave at least 1 token");
 
         // Aktualizácia rezerv
-        token_reserves += amountTokensAfterFee;
+        token_reserves += amountTokens;
         eth_reserves -=  expectedETH;
-        totalTokenFees += fee;
+        //totalTokenFees += fee;
 
         // Aktualizácia k (kvôli zaokrúhľovaniu) - optional
         //k = token_reserves * eth_reserves;
@@ -335,8 +335,8 @@ contract TokenExchange is Ownable {
 
         // Aktualizácia rezerv
         token_reserves -= expectedTokens;
-        eth_reserves += ethAfterFee;
-        totalEthFees += fee;
+        eth_reserves += msg.value;
+        //totalEthFees += fee;
 
         // Aktualizácia k (kvôli zaokrúhľovaniu) - optional
         //k = token_reserves * eth_reserves;
