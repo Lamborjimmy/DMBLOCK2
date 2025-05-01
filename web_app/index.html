@@ -1,11 +1,17 @@
+<!--  =================== FIIT DEX Project =================== -->
+<!--         @authors:  Martin Farkaš // Jaroslav Ertl         -->
+<!-- ========================================================= -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <title>StanDex Exchange</title>
-    <link rel="stylesheet" type="text/css" href="./style.css">
+    <link rel="stylesheet" type="text/css" href="./style.css" />
     <script src="./abi-decoder.js"></script>
     <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="header">
@@ -25,43 +31,45 @@
         <article>
           <div id="rate-display">
             <h1 id="current-rate-title">Current rate:</h1>
-              <div class="currency">
-                  <img src="ethereum.png" alt="Ethereum" class="currency-icon">
-                  <h3 id="eth-token-rate-display"></h3>
-              </div>
-              <div class="currency">
-                  <img src="shrekcoin.png" alt="Shrekcoin" class="currency-icon">
-                  <h3 id="token-eth-rate-display"></h3>
-              </div>
+            <div class="currency">
+              <img src="ethereum.png" alt="Ethereum" class="currency-icon" />
+              <h3 id="eth-token-rate-display"></h3>
+            </div>
+            <div class="currency">
+              <img src="shrekcoin.png" alt="Shrekcoin" class="currency-icon" />
+              <h3 id="token-eth-rate-display"></h3>
+            </div>
           </div>
           <div id="liquidity-display">
             <h1 id="current-liquidity-title">Current Liquidity:</h1>
             <div class="currency">
-              <img src="ethereum.png" alt="Ethereum" class="currency-icon">
+              <img src="ethereum.png" alt="Ethereum" class="currency-icon" />
               <h3 id="eth-reserves"></h3>
             </div>
             <div class="currency">
-              <img src="shrekcoin.png" alt="Shrekcoin" class="currency-icon">
+              <img src="shrekcoin.png" alt="Shrekcoin" class="currency-icon" />
               <h3 id="token-reserves"></h3>
             </div>
           </div>
           <div id="swap-control">
-            <h4 class="swap-control-title"> Swap Currencies: </h4>
+            <h4 class="swap-control-title">Swap Currencies:</h4>
             <label for="amt-to-swap">Amount:</label>
-            <input id="amt-to-swap" type="text"/>
+            <input id="amt-to-swap" type="text" />
             <label for="max-slippage-swap">Maximum Slippage Percentage:</label>
-            <input id="max-slippage-swap" type="text"/>
+            <input id="max-slippage-swap" type="text" />
             <div id="swap-control-buttons">
               <button id="swap-eth"></button>
               <button id="swap-token"></button>
             </div>
           </div>
           <div id="liquidity-control">
-            <h4 class="liquidity-control-title"> Adjust Liquidity: </h4>
+            <h4 class="liquidity-control-title">Adjust Liquidity:</h4>
             <label for="amt-eth">Amount in Eth:</label>
-            <input id="amt-eth" type="text"/>
-            <label for="max-slippage-liquid">Maximum Slippage Percentage:</label>
-            <input id="max-slippage-liquid" type="text"/>
+            <input id="amt-eth" type="text" />
+            <label for="max-slippage-liquid"
+              >Maximum Slippage Percentage:</label
+            >
+            <input id="max-slippage-liquid" type="text" />
             <div id="liquidity-control-buttons">
               <button id="add-liquidity">Add Liquidity</button>
               <button id="remove-liquidity">Remove Liquidity</button>
@@ -71,12 +79,9 @@
         </article>
         <pre id="log"></pre>
       </div>
-      
-
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.slim.min.js"></script>
     <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
     <script src="./exchange.js"></script>
   </body>
 </html>
-
