@@ -214,7 +214,7 @@ contract TokenExchange is Ownable {
         require(max_exchange_rate >= expectedTokens, "Exchange rate exceeds max");
         require(expectedTokens >= min_exchange_rate, "Exchange rate below min");
 
-        require(eth_reserves - value > 0, "Can't withdraw ETH to drain reserves");
+        require(eth_reserves - amountETH > 0, "Can't withdraw ETH to drain reserves");
         require(token_reserves- expectedTokens > 0, "Can't withdraw SHR to drain reserves");
         
         eth_reserves -= amountETH;
