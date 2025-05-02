@@ -209,7 +209,7 @@ contract TokenExchange is Ownable {
     {
         uint value = lps[msg.sender];
         uint amountETH = (value * eth_reserves) / totalShares;
-        uint expectedTokens = (value * token_reserves) / eth_reserves;
+        uint expectedTokens = (amountETH * token_reserves) / eth_reserves;
 
         require(max_exchange_rate >= expectedTokens, "Exchange rate exceeds max");
         require(expectedTokens >= min_exchange_rate, "Exchange rate below min");
